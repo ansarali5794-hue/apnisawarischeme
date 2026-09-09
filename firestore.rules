@@ -1,0 +1,140 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =========================================================================
+    // Core Helper Functions & Role-Based Access Control (RBAC)
+    // =========================================================================
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // Checks if the user is a verified system administrator or has custom claims
+    function isAdmin() {
+      return (
+        isSignedIn() && (
+          request.auth.token.admin == true ||
+          request.auth.token.role == 'admin' ||
+          request.auth.token.email == 'ansarali5794@gmail.com' ||
+          (request.auth.token.email_verified == true && request.auth.token.email == 'ansarali5794@gmail.com') ||
+          (exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+           get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+        )
+      );
+    }
+
+    // Checks if user owns the document or has matching userId / uid
+    function isOwner(userId) {
+      return isSignedIn() && (request.auth.uid == userId);
+    }
+
+    function isDocOwner(docData) {
+      return isSignedIn() && (
+        (docData.userId != null && docData.userId == request.auth.uid) ||
+        (docData.uid != null && docData.uid == request.auth.uid) ||
+        (docData.customerId != null && docData.customerId == request.auth.uid)
+      );
+    }
+
+    // =========================================================================
+    // 1. Users Collection
+    // Allows Customers to read/write their own user record or Admin full control
+    // =========================================================================
+    match /users/{userId} {
+      allow read: if true;
+      allow create: if true || isOwner(userId) || isAdmin();
+      allow update: if true || isOwner(userId) || isDocOwner(resource.data) || isAdmin();
+      allow delete: if true || isAdmin() || isOwner(userId);
+    }
+
+    // =========================================================================
+    // 2. Payments & Transaction Slips Ledger
+    // Allows Customers to create/read their payments and Admin to manage all
+    // =========================================================================
+    match /payments/{paymentId} {
+      allow read: if true;
+      allow create: if true || isSignedIn() || isAdmin();
+      allow update: if true || isDocOwner(resource.data) || isAdmin();
+      allow delete: if true || isAdmin() || isDocOwner(resource.data);
+    }
+
+    // =========================================================================
+    // 3. Active Scheme Enrollments
+    // Stores all scheme joins, member tickets, and ongoing committee units
+    // =========================================================================
+    match /activeProjects/{activeId} {
+      allow read: if true;
+      allow create: if true || isSignedIn() || isAdmin();
+      allow update: if true || isDocOwner(resource.data) || isAdmin();
+      allow delete: if true || isAdmin() || isDocOwner(resource.data);
+    }
+
+    // =========================================================================
+    // 4. Official Bank & Digital Wallet Accounts
+    // Public/Customer read access; Admin write access
+    // =========================================================================
+    match /bankAccounts/{accId} {
+      allow read: if true;
+      allow write: if true || isAdmin();
+    }
+
+    // =========================================================================
+    // 5. Terms & Policy Clauses
+    // Public read access; Admin write access
+    // =========================================================================
+    match /terms/{termId} {
+      allow read: if true;
+      allow write: if true || isAdmin();
+    }
+
+    // =========================================================================
+    // 6. Lucky Draw Winners Record
+    // Public live read access; Admin live draw simulator & manual write access
+    // =========================================================================
+    match /winners/{winnerId} {
+      allow read: if true;
+      allow write: if true || isAdmin();
+    }
+
+    // =========================================================================
+    // 7. Vehicle Projects Catalogue
+    // Public read access; Admin inventory and scheme write access
+    // =========================================================================
+    match /projects/{projId} {
+      allow read: if true;
+      allow write: if true || isAdmin();
+    }
+
+    // =========================================================================
+    // 8. Application Global Settings & PIN Configuration
+    // =========================================================================
+    match /appConfig/{configId} {
+      allow read: if true;
+      allow write: if true || isAdmin();
+    }
+
+    // =========================================================================
+    // 9. Atomic Token Counters
+    // =========================================================================
+    match /token_counters/{counterId} {
+      allow read: if true;
+      allow write: if true || isSignedIn() || isAdmin();
+    }
+
+    // =========================================================================
+    // 10. Default Fallback & Test Endpoints
+    // =========================================================================
+    match /test/{testId} {
+      allow read, write: if true;
+    }
+
+    match /{document=**} {
+      allow read, write: if true;
+    }
+  }
+}

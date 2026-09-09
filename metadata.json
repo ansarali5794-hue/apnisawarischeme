@@ -1,0 +1,8 @@
+{
+  "name": "Apni Sawari Scheme",
+  "description": "APNI SAWARI SCHEME - Official application for vehicle committee and lucky draw schemes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}

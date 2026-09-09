@@ -1,0 +1,15 @@
+{
+  "appId": "pk.apnisawari.scheme",
+  "appName": "Apni Sawari",
+  "webDir": "dist",
+  "bundledWebRuntime": false,
+  "server": {
+    "url": "https://ais-pre-v24ynvc7rw6wua7zkvzaz7-617095961836.asia-southeast1.run.app",
+    "cleartext": true
+  },
+  "android": {
+    "allowMixedContent": true,
+    "captureInput": true,
+    "webContentsDebuggingEnabled": true
+  }
+}

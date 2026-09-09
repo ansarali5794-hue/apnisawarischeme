@@ -1,0 +1,119 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Registered member profile with token and contact details",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "full_name": { "type": "string" },
+        "email": { "type": "string" },
+        "phone": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "cnic": { "type": "string" },
+        "memberId": { "type": "string" },
+        "role": { "type": "string" },
+        "account_status": { "type": "string" },
+        "terms_accepted": { "type": "boolean" },
+        "terms_accepted_at": { "type": "string" },
+        "created_at": { "type": "string" },
+        "activeTokensCount": { "type": "number" },
+        "totalPaidAmount": { "type": "number" }
+      },
+      "required": ["name", "memberId"]
+    },
+    "PaymentRecord": {
+      "title": "PaymentRecord",
+      "description": "Payment installment or token ledger entry",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "userToken": { "type": "string" },
+        "userName": { "type": "string" },
+        "projectName": { "type": "string" },
+        "installmentLabel": { "type": "string" },
+        "amount": { "type": "number" },
+        "date": { "type": "string" },
+        "transactionRef": { "type": "string" },
+        "paymentMethod": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["projectName", "amount", "status"]
+    },
+    "UserActiveProject": {
+      "title": "UserActiveProject",
+      "description": "Active scheme enrollment of a member",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "projectId": { "type": "string" },
+        "projectTitle": { "type": "string" },
+        "projectType": { "type": "string" },
+        "ticketNumber": { "type": "string" },
+        "status": { "type": "string" }
+      },
+      "required": ["projectId", "ticketNumber"]
+    },
+    "BankAccountDetail": {
+      "title": "BankAccountDetail",
+      "description": "Admin configured official bank accounts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "bankName": { "type": "string" },
+        "accountTitle": { "type": "string" },
+        "accountNumber": { "type": "string" }
+      },
+      "required": ["bankName", "accountTitle", "accountNumber"]
+    },
+    "TermSection": {
+      "title": "TermSection",
+      "description": "Terms and conditions clause",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "number": { "type": "string" },
+        "title": { "type": "string" }
+      },
+      "required": ["number", "title"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Stores user member accounts"
+    },
+    "/payments/{paymentId}": {
+      "schema": "PaymentRecord",
+      "description": "Stores all payment transactions and receipts"
+    },
+    "/activeProjects/{activeId}": {
+      "schema": "UserActiveProject",
+      "description": "Stores all member active project enrollments"
+    },
+    "/bankAccounts/{accId}": {
+      "schema": "BankAccountDetail",
+      "description": "Stores admin company bank accounts"
+    },
+    "/terms/{termId}": {
+      "schema": "TermSection",
+      "description": "Stores official terms clauses"
+    },
+    "/winners/{winnerId}": {
+      "schema": "UserProfile",
+      "description": "Stores lucky draw winners list"
+    },
+    "/projects/{projId}": {
+      "schema": "UserProfile",
+      "description": "Stores custom projects added by admin"
+    },
+    "/appConfig/{configId}": {
+      "schema": "UserProfile",
+      "description": "Stores system settings like admin PIN"
+    }
+  }
+}

@@ -1,0 +1,202 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --color-primary: #8b001f;
+    --color-primary-dark: #660017;
+    --color-primary-light: #b91c1c;
+    --color-primary-container: #fee2e2;
+    --color-gold: #f59e0b;
+    --color-gold-light: #fde68a;
+    --color-gold-dark: #92400e;
+    --color-gold-border: #fcd34d;
+    --color-surface: #f8fafc;
+    --color-surface-card: #ffffff;
+    --color-on-surface: #0f172a;
+    --color-on-surface-variant: #475569;
+    --color-border: #e2e8f0;
+  }
+
+  html, body, #root {
+    width: 100%;
+    min-height: 100%;
+    min-height: 100dvh;
+    margin: 0;
+    padding: 0;
+  }
+
+  * {
+    -webkit-tap-highlight-color: transparent;
+    -webkit-touch-callout: none;
+    box-sizing: border-box;
+  }
+
+  html {
+    scroll-behavior: smooth;
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    background-color: #f8fafc;
+    color: #0f172a;
+    -webkit-tap-highlight-color: transparent;
+    overflow-x: hidden;
+    touch-action: pan-y pinch-zoom;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  input, textarea, [contenteditable="true"] {
+    user-select: text !important;
+    -webkit-user-select: text !important;
+  }
+
+  /* Safe Area Insets for iOS Notch & Android Gesture Bar */
+  .pt-safe {
+    padding-top: max(env(safe-area-inset-top), 0.75rem);
+  }
+  .pb-safe {
+    padding-bottom: max(env(safe-area-inset-bottom), 0.75rem);
+  }
+  .pl-safe {
+    padding-left: max(env(safe-area-inset-left), 0.75rem);
+  }
+  .pr-safe {
+    padding-right: max(env(safe-area-inset-right), 0.75rem);
+  }
+
+  h1, h2, h3, h4, h5, h6, .font-headline {
+    font-family: 'Outfit', 'Plus Jakarta Sans', sans-serif;
+  }
+
+  /* High-fidelity Arabic / Urdu / Sindhi Font stacks for Mobile UI */
+  .font-urdu {
+    font-family: system-ui, -apple-system, sans-serif;
+    line-height: 1.75;
+    letter-spacing: 0;
+  }
+
+  .font-sindhi {
+    font-family: system-ui, -apple-system, sans-serif;
+    line-height: 1.75;
+    letter-spacing: 0;
+  }
+
+  .font-english {
+    font-family: 'Plus Jakarta Sans', 'Outfit', -apple-system, system-ui, sans-serif;
+    line-height: 1.5;
+  }
+
+  /* Optical alignment for Urdu/Sindhi text inside buttons & small pills */
+  .font-urdu button, .font-urdu .btn-text, .font-urdu .nav-label,
+  .font-sindhi button, .font-sindhi .btn-text, .font-sindhi .nav-label {
+    font-family: system-ui, -apple-system, sans-serif;
+    line-height: 1.35;
+  }
+}
+
+/* FlutterFlow-like Glassmorphism, Gradients & Elevation */
+.gold-gradient {
+  background: linear-gradient(135deg, #fef3c7 0%, #f59e0b 50%, #d97706 100%);
+}
+
+.gold-gradient-bg {
+  background: linear-gradient(135deg, #fde68a 0%, #fef3c7 100%);
+}
+
+.maroon-gradient {
+  background: linear-gradient(140deg, #8b001f 0%, #a81232 50%, #600015 100%);
+}
+
+.gold-text-gradient {
+  background: linear-gradient(135deg, #fef3c7 0%, #fcd34d 50%, #f59e0b 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.gold-dark-text-gradient {
+  background: linear-gradient(135deg, #92400e 0%, #78350f 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.bg-premium-gradient {
+  background: linear-gradient(145deg, #0f172a 0%, #1e293b 60%, #090d16 100%);
+}
+
+/* FlutterFlow Elevation & Physics System */
+.card-shadow {
+  box-shadow: 0 1px 3px 0 rgba(15, 23, 42, 0.05), 0 6px 18px -2px rgba(15, 23, 42, 0.05);
+}
+
+.card-shadow-hover {
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.card-shadow-hover:hover {
+  box-shadow: 0 12px 28px -4px rgba(15, 23, 42, 0.12), 0 4px 10px -2px rgba(15, 23, 42, 0.05);
+  transform: translateY(-2px);
+}
+
+.premium-shadow {
+  box-shadow: 0 8px 24px -4px rgba(139, 0, 31, 0.12);
+}
+
+.shadow-glow {
+  box-shadow: 0 10px 30px -5px rgba(245, 158, 11, 0.25);
+}
+
+.shadow-gold {
+  box-shadow: 0 4px 16px rgba(245, 158, 11, 0.35);
+}
+
+.shadow-maroon {
+  box-shadow: 0 6px 20px rgba(139, 0, 31, 0.35);
+}
+
+.shadow-flutter-2 {
+  box-shadow: 0 4px 20px -2px rgba(15, 23, 42, 0.08), 0 2px 6px -1px rgba(15, 23, 42, 0.04);
+}
+
+/* Mobile App Snapping & Horizontal Carousel */
+.scroll-snap-x {
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.scroll-snap-item {
+  scroll-snap-align: start;
+}
+
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* FlutterFlow Touch Active Scale & Feedback */
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+button:active, .touch-scale:active {
+  transform: scale(0.97);
+  transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1);
+}
+
+/* FlutterFlow Shimmer Effect */
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+.animate-shimmer {
+  animation: shimmer 2.5s infinite;
+}
+

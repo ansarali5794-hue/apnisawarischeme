@@ -1,0 +1,4 @@
+sed -i 's/Number(projectFormData.tokenPrice) || 5000/projectFormData.tokenPrice === "" || projectFormData.tokenPrice === undefined ? 0 : Number(projectFormData.tokenPrice)/g' src/views/AdminView.tsx
+sed -i 's/Number(projectFormData.monthlyKist) || 5000/projectFormData.monthlyKist === "" || projectFormData.monthlyKist === undefined ? 0 : Number(projectFormData.monthlyKist)/g' src/views/AdminView.tsx
+sed -i 's/Number(projectFormData.durationMonths) || 24/projectFormData.durationMonths === "" || projectFormData.durationMonths === undefined ? 0 : Number(projectFormData.durationMonths)/g' src/views/AdminView.tsx
+sed -i 's/Number(projectFormData.totalMembers) || 450/projectFormData.totalMembers === "" || projectFormData.totalMembers === undefined ? 0 : Number(projectFormData.totalMembers)/g' src/views/AdminView.tsx

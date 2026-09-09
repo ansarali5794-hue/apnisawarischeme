@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#98001b"/>
+      <stop offset="100%" stop-color="#55000e"/>
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffe3ab"/>
+      <stop offset="50%" stop-color="#fed488"/>
+      <stop offset="100%" stop-color="#d49b20"/>
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="110" fill="url(#bgGrad)"/>
+  <circle cx="256" cy="256" r="210" fill="none" stroke="url(#goldGrad)" stroke-width="8" opacity="0.4"/>
+  
+  <!-- Car Graphic -->
+  <path d="M120 310 L150 210 Q165 180 205 180 L307 180 Q347 180 362 210 L392 310 Q405 310 405 328 L405 365 Q405 375 395 375 L380 375 L380 395 Q380 405 365 405 L345 405 Q330 405 330 395 L330 375 L182 375 L182 395 Q182 405 167 405 L147 405 Q132 405 132 395 L132 375 L117 375 Q107 375 107 365 L107 328 Q107 310 120 310 Z" fill="url(#goldGrad)"/>
+  
+  <!-- Car Windows -->
+  <path d="M165 290 L185 210 Q192 198 208 198 L248 198 L248 290 Z" fill="#98001b"/>
+  <path d="M264 198 L304 198 Q320 198 327 210 L347 290 L264 290 Z" fill="#98001b"/>
+  
+  <!-- Headlights -->
+  <circle cx="150" cy="335" r="14" fill="#ffffff"/>
+  <circle cx="362" cy="335" r="14" fill="#ffffff"/>
+  
+  <!-- Crown / Star on top -->
+  <polygon points="256,90 270,130 312,130 278,155 291,195 256,170 221,195 234,155 200,130 242,130" fill="url(#goldGrad)"/>
+  
+  <!-- Text APNI SAWARI -->
+  <text x="256" y="445" font-family="Arial, Helvetica, sans-serif" font-weight="900" font-size="34" fill="#fed488" text-anchor="middle" letter-spacing="3">APNI SAWARI</text>
+</svg>
