@@ -15,7 +15,7 @@ interface DashboardViewProps {
 
 export const DashboardView: React.FC<DashboardViewProps> = ({
   user,
-  activeProjects,
+  activeProjects = [],
   winners = [],
   onNavigate,
   onPayInstallment,
@@ -31,7 +31,43 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const memberId = user.memberId || 'TK-2024-001';
+  const memberId = user.memberId || 'TK-2026-001';
+
+  // Group tokens strictly by scheme / project
+  const groupedSchemes = React.useMemo(() => {
+    const map = new Map<string, {
+      projectId: string;
+      projectTitle: string;
+      imageUrl?: string;
+      projectType?: string;
+      monthlyKist?: number;
+      tokenAmount?: number;
+      totalUnits?: number;
+      tokens: UserActiveProject[];
+    }>();
+
+    (activeProjects || []).forEach(p => {
+      const key = p.projectId || p.projectTitle;
+      if (!map.has(key)) {
+        map.set(key, {
+          projectId: p.projectId,
+          projectTitle: p.projectTitle,
+          imageUrl: p.imageUrl,
+          projectType: p.projectType,
+          monthlyKist: p.monthlyKist,
+          tokenAmount: p.tokenAmount,
+          totalUnits: p.totalUnits,
+          tokens: []
+        });
+      }
+      map.get(key)!.tokens.push(p);
+    });
+
+    return Array.from(map.values());
+  }, [activeProjects]);
+
+  const uniqueSchemesCount = groupedSchemes.length;
+  const totalTokensCount = (activeProjects || []).length;
 
   return (
     <div className="space-y-5 px-4 py-5 animate-in fade-in duration-300 pb-10">
@@ -93,18 +129,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="grid grid-cols-2 gap-3 my-3.5">
           <div className="bg-black/25 backdrop-blur-md p-3.5 rounded-2xl border border-white/10">
             <span className="text-[10.5px] text-white/80 uppercase font-bold block mb-0.5">
-              Applied Schemes
+              {currentLang === 'ur' ? 'کل شامل سکیمیں' : currentLang === 'sd' ? 'ڪل اسڪيمون' : 'Applied Schemes'}
             </span>
             <span className="font-headline text-xl font-black text-amber-300 font-mono">
-              {(activeProjects || []).length} <span className="text-xs font-normal text-white/90">Schemes</span>
+              {uniqueSchemesCount} <span className="text-xs font-normal text-white/90">{uniqueSchemesCount === 1 ? 'Scheme' : 'Schemes'}</span>
             </span>
           </div>
           <div className="bg-black/25 backdrop-blur-md p-3.5 rounded-2xl border border-white/10">
             <span className="text-[10.5px] text-white/80 uppercase font-bold block mb-0.5">
-              Total Tokens
+              {currentLang === 'ur' ? 'کل جاری ٹوکنز' : currentLang === 'sd' ? 'ڪل ٽوڪن' : 'Total Tokens'}
             </span>
             <span className="font-headline text-xl font-black text-amber-300 font-mono">
-              {(activeProjects || []).length} <span className="text-xs font-normal text-white/90">Tokens</span>
+              {totalTokensCount} <span className="text-xs font-normal text-white/90">{totalTokensCount === 1 ? 'Token' : 'Tokens'}</span>
             </span>
           </div>
         </div>
@@ -112,7 +148,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         <div className="flex gap-2.5 pt-1">
           <button
             id="dash-explore-vehicles"
-            onClick={() => onNavigate('projects')}
+            onClick={() => {
+              onNavigate('home');
+              window.scrollTo({ top: 0, behavior: 'smooth' });
+            }}
             className="flex-1 bg-white/15 hover:bg-white/25 active:scale-96 text-white font-black text-xs py-2.5 rounded-2xl transition-all flex items-center justify-center gap-1.5 cursor-pointer border border-white/20 touch-target"
           >
             <Car className="w-4 h-4 text-amber-300" />
@@ -121,13 +160,18 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
         </div>
       </section>
 
-      {/* Detailed Token List */}
+      {/* Detailed Schemes & Allotted Tokens List */}
       <section className="space-y-3">
-        <h3 className="text-sm font-black text-[#181c1c] dark:text-white uppercase tracking-wider px-1">
-          {currentLang === 'ur' ? 'آپ کی سکیموں کی تفصیل' : currentLang === 'sd' ? 'توهان جي اسڪيمن جو تفصيل' : 'Your Scheme Details'}
-        </h3>
+        <div className="flex items-center justify-between px-1">
+          <h3 className="text-sm font-black text-[#181c1c] dark:text-white uppercase tracking-wider">
+            {currentLang === 'ur' ? 'آپ کی سکیموں اور ٹوکنز کی تفصیل' : currentLang === 'sd' ? 'توهان جي اسڪيمن ۽ ٽوڪنن جو تفصيل' : 'Your Schemes & Allotted Tokens'}
+          </h3>
+          <span className="text-xs font-bold text-[#98001b] dark:text-rose-400 font-mono">
+            {uniqueSchemesCount} Schemes / {totalTokensCount} Tokens
+          </span>
+        </div>
         
-        {(activeProjects || []).length === 0 ? (
+        {uniqueSchemesCount === 0 ? (
           <div className="bg-white dark:bg-slate-800 p-6 rounded-3xl border border-slate-200 dark:border-slate-700 text-center shadow-sm">
             <div className="w-16 h-16 bg-neutral-100 dark:bg-neutral-700 rounded-full flex items-center justify-center mx-auto mb-3">
               <Ticket className="w-8 h-8 text-neutral-400" />
@@ -135,52 +179,124 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <p className="text-sm text-neutral-500 font-medium">
               {currentLang === 'ur' ? 'آپ نے ابھی تک کسی سکیم میں حصہ نہیں لیا۔' : 'You have not joined any scheme yet.'}
             </p>
+            <button
+              onClick={() => {
+                onNavigate('home');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
+              className="mt-3 inline-flex items-center gap-1.5 bg-[#98001b] text-white px-4 py-2 rounded-xl text-xs font-bold shadow-sm"
+            >
+              <Car className="w-3.5 h-3.5 text-amber-300" />
+              <span>{t.exploreVehicles}</span>
+            </button>
           </div>
         ) : (
-          <div className="space-y-3">
-            {(activeProjects || []).map(project => {
-              const hasWon = (winners || []).some(w => w.memberId === user.memberId && w.prizeWon.includes(project.projectTitle));
-              // Check if project is 36 months to apply complete waive off
-              const is36Months = project.projectType?.includes('36');
-              
+          <div className="space-y-4">
+            {groupedSchemes.map((scheme) => {
+              const hasWon = (winners || []).some(
+                w => (w.memberId === user.memberId || w.name === user.name) && 
+                     (w.prizeWon.includes(scheme.projectTitle) || scheme.tokens.some(t => w.prizeWon.includes(t.ticketNumber)))
+              );
+              const is36Months = scheme.projectType?.includes('36') || scheme.totalUnits === 36;
+              const primaryToken = scheme.tokens[0];
+
               return (
-                <div key={project.id} className="bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm flex gap-3 relative overflow-hidden">
+                <div
+                  key={scheme.projectId || scheme.projectTitle}
+                  className="bg-white dark:bg-slate-800 p-4 rounded-3xl border border-slate-200 dark:border-slate-700 shadow-sm relative overflow-hidden"
+                >
                   {hasWon && is36Months && (
-                    <div className="absolute -right-6 -top-6 w-24 h-24 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>
+                    <div className="absolute -right-6 -top-6 w-28 h-28 bg-emerald-500/10 rounded-full blur-xl pointer-events-none"></div>
                   )}
-                  
-                  <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
-                    <img src={project.imageUrl || 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&q=80&w=300'} alt={project.projectTitle} className="w-full h-full object-cover" />
-                  </div>
-                  
-                  <div className="flex-1">
-                    <div className="flex justify-between items-start mb-1">
-                      <h4 className="font-bold text-sm text-[#181c1c] dark:text-white leading-tight">
-                        {project.projectTitle}
-                      </h4>
-                      <span className="text-[10px] font-mono font-bold bg-[#f7faf9] dark:bg-neutral-700 px-2 py-0.5 rounded-lg text-[#98001b] dark:text-rose-400 border border-[#e0e3e2] dark:border-neutral-600">
-                        {project.ticketNumber}
-                      </span>
+
+                  <div className="flex gap-3 items-start pb-3 border-b border-slate-100 dark:border-slate-700">
+                    <div className="w-16 h-16 rounded-2xl overflow-hidden shrink-0 bg-neutral-100 dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700">
+                      <img
+                        src={scheme.imageUrl || 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&q=80&w=300'}
+                        alt={scheme.projectTitle}
+                        className="w-full h-full object-cover"
+                      />
                     </div>
-                    
-                    <p className="text-xs text-neutral-500 font-medium mb-2">
-                      {currentLang === 'ur' ? 'آپ کا یہ ٹوکن چل رہا ہے' : 'Your token is active in this scheme'}
-                    </p>
-                    
-                    {hasWon && is36Months ? (
-                      <div className="mt-2 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-2.5 rounded-xl flex items-start gap-2">
-                        <Award className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                        <p className="text-xs text-emerald-700 dark:text-emerald-400 font-urdu font-bold leading-relaxed">
-                          آپ کا ٹوکن لکی ڈرا میں نکل گیا ہے لہذا آپ کی اگلی تمام اقساط ختم ہو گئی ہیں!
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="flex justify-between items-center mt-2 border-t border-slate-100 dark:border-slate-700 pt-2">
-                        <span className="text-xs font-bold text-neutral-600 dark:text-neutral-400">
-                          {project.projectType}
+
+                    <div className="flex-1 min-w-0">
+                      <div className="flex justify-between items-start gap-1">
+                        <h4 className="font-bold text-sm text-[#181c1c] dark:text-white leading-tight truncate">
+                          {scheme.projectTitle}
+                        </h4>
+                        <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-50 dark:bg-rose-950/40 text-[#98001b] dark:text-rose-300 border border-rose-200 dark:border-rose-900 shrink-0">
+                          {scheme.tokens.length} {scheme.tokens.length === 1 ? 'Token' : 'Tokens'}
                         </span>
                       </div>
-                    )}
+
+                      <p className="text-xs text-neutral-500 font-medium mt-0.5">
+                        {scheme.projectType || 'Scheme Plan'}
+                      </p>
+
+                      {scheme.monthlyKist && scheme.monthlyKist > 0 ? (
+                        <p className="text-xs font-bold text-[#98001b] dark:text-rose-400 mt-1">
+                          PKR {scheme.monthlyKist.toLocaleString()} <span className="text-[10px] font-normal text-neutral-500">/ month per token</span>
+                        </p>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  {/* Allotted Tokens in this Scheme */}
+                  <div className="mt-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-bold text-neutral-500 uppercase tracking-wider">
+                        {currentLang === 'ur' ? 'جاری کردہ ٹوکن نمبرز' : 'Allotted Token Numbers'} ({scheme.tokens.length})
+                      </span>
+                    </div>
+
+                    <div className="flex flex-wrap gap-2">
+                      {scheme.tokens.map((tok, idx) => (
+                        <div
+                          key={tok.id || idx}
+                          className="flex items-center gap-1.5 bg-[#f7faf9] dark:bg-neutral-700/60 border border-[#e0e3e2] dark:border-neutral-600 px-2.5 py-1 rounded-xl"
+                        >
+                          <Ticket className="w-3.5 h-3.5 text-[#98001b] dark:text-rose-400" />
+                          <span className="font-mono font-bold text-xs text-[#181c1c] dark:text-white">
+                            {tok.ticketNumber}
+                          </span>
+                          <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${
+                            tok.status === 'ACTIVE' 
+                              ? 'bg-emerald-100 text-emerald-800' 
+                              : 'bg-amber-100 text-amber-800'
+                          }`}>
+                            {tok.status || 'ACTIVE'}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {hasWon && is36Months ? (
+                    <div className="mt-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-2.5 rounded-xl flex items-start gap-2">
+                      <Award className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+                      <p className="text-xs text-emerald-700 dark:text-emerald-400 font-urdu font-bold leading-relaxed">
+                        مبارک ہو! آپ کا ٹوکن لکی ڈرا میں نکل گیا ہے، اگلی تمام اقساط معاف کر دی گئی ہیں!
+                      </p>
+                    </div>
+                  ) : null}
+
+                  {/* Actions */}
+                  <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-700 flex gap-2">
+                    <button
+                      onClick={() => primaryToken && onPayInstallment(primaryToken)}
+                      className="flex-1 bg-[#98001b] hover:bg-[#be1e2d] text-white py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs transition-transform active:scale-97"
+                    >
+                      <CreditCard className="w-3.5 h-3.5" />
+                      <span>{currentLang === 'ur' ? 'قسط یا ٹوکن ادا کریں' : currentLang === 'sd' ? 'قسط ادا ڪريو' : 'Pay Installment / Token'}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        onNavigate('home');
+                        window.scrollTo({ top: 0, behavior: 'smooth' });
+                      }}
+                      className="px-3 py-2 rounded-xl text-xs font-bold border border-slate-200 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-50 dark:hover:bg-neutral-700/50 cursor-pointer"
+                    >
+                      + Buy More Tokens
+                    </button>
                   </div>
                 </div>
               );

@@ -16,18 +16,22 @@ import {
   Clock,
   Trash2,
   Eye,
-  FileCheck
+  FileCheck,
+  AlertCircle,
+  Plus,
+  Minus
 } from 'lucide-react';
 import { VehicleProject, UserProfile, BankAccountDetail, PaymentRecord, UserActiveProject } from '../types';
 import { DEFAULT_BANK_ACCOUNTS } from '../data/mockData';
-import { getNextUniqueTokenNumber } from '../lib/tokenService';
+import { getNextMultipleUniqueTokens, getPlanTokenPrefix } from '../lib/tokenService';
 import { generatePaymentIdempotencyKey, sanitizeText } from '../lib/security';
+import { calculateSchemeArrears } from '../lib/arrearsService';
 
 interface JoinProjectModalProps {
   project: VehicleProject | null;
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: (project: VehicleProject, ticket: string, paymentRecord?: PaymentRecord) => void;
+  onSuccess: (project: VehicleProject, tickets: string | string[], paymentRecord?: PaymentRecord) => void;
   onNavigateToTerms: () => void;
   currentUser?: UserProfile | null;
   bankAccounts?: BankAccountDetail[];
@@ -53,8 +57,12 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
       !b.title.toLowerCase().includes('head office')
   );
 
-  // Form Steps: 1 = Details & Plan Confirmation, 2 = Payment Selection & Account Transfer, 3 = Completed/Pending Review
+  // Form Steps: 1 = Details & Token Quantity, 2 = Payment Selection & Account Transfer, 3 = Completed/Pending Review
   const [step, setStep] = useState<1 | 2 | 3>(1);
+
+  // Multiple Tokens State
+  const [tokenQuantity, setTokenQuantity] = useState<number>(1);
+  const [allocatedTokens, setAllocatedTokens] = useState<Array<{ tokenNumber: number; tokenDisplay: string }>>([]);
 
   const [fullName, setFullName] = useState(currentUser?.name || currentUser?.full_name || '');
   const [cnic, setCnic] = useState(currentUser?.cnic || '');
@@ -79,7 +87,6 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
   // Submission / Loading
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [generatedTicketDisplay, setGeneratedTicketDisplay] = useState('');
-  const [generatedTokenNumber, setGeneratedTokenNumber] = useState<number>(1);
   const [createdPayment, setCreatedPayment] = useState<PaymentRecord | null>(null);
 
   // Keep state in sync if currentUser changes
@@ -97,23 +104,32 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
     }
   }, [activeAccounts]);
 
+  // Reset modal step and tokens on open with a project
+  React.useEffect(() => {
+    if (isOpen) {
+      setStep(1);
+      setTokenQuantity(1);
+      setAllocatedTokens([]);
+      setFormError('');
+      setTrxId('');
+      setReceiptImage(null);
+      setReceiptFileName('');
+    }
+  }, [isOpen, project]);
+
   if (!isOpen || !project) return null;
 
   const currentSelectedAccount = activeAccounts.find((a) => a.id === selectedAccountId) || activeAccounts[0];
   
-  let monthsPassed = 0;
-  if (project.startDate) {
-    const start = new Date(project.startDate);
-    const now = new Date();
-    const m = (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth();
-    monthsPassed = m > 0 ? m : 0;
-  }
+  // Arrears calculation for scheme starting in the past
+  const arrears = calculateSchemeArrears(project, 0);
+  const baseKist = arrears.baseMonthlyKist;
+  const totalPayablePerToken = arrears.totalPayablePerToken;
+  const totalPayableAmount = totalPayablePerToken * tokenQuantity;
 
-  const baseKist = project.monthlyKist || project.tokenPrice || 5000;
-  // If monthsPassed is 2 (started 2 months ago), they must pay for those 2 past months + the current month = 3 total.
-  const totalMonthsToPay = monthsPassed + 1;
-  const payableAmount = baseKist * totalMonthsToPay;
-  const paymentLabel = monthsPassed > 0 ? `Registration + ${monthsPassed} Past Month(s) Pending Installments` : 'Initial Registration Installment';
+  const paymentLabel = arrears.monthsPassed > 0
+    ? `${tokenQuantity} Token${tokenQuantity > 1 ? 's' : ''} - Registration + ${arrears.monthsPassed} Past Overdue Months (Total ${arrears.unpaidMonths} Mos)`
+    : `${tokenQuantity} Token${tokenQuantity > 1 ? 's' : ''} - 1st Month Registration Installment`;
 
   const handleCopyAccount = (text: string) => {
     navigator.clipboard?.writeText(text);
@@ -171,7 +187,7 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
     }
   };
 
-  // Step 1 -> Finalize Enrollment
+  // Step 1 -> Allocate Unique Sequential Tokens & Proceed to Payment
   const handleProceedToPayment = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
@@ -179,28 +195,44 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
       setFormError('براہ کرم شرائط و ضوابط (Terms & Conditions) سے اتفاق کریں۔');
       return;
     }
+    if (!fullName.trim()) {
+      setFormError('براہ کرم اپنا پورا نام درج کریں۔');
+      return;
+    }
+    if (!phone.trim()) {
+      setFormError('براہ کرم اپنا موبائل نمبر درج کریں۔');
+      return;
+    }
+    if (tokenQuantity < 1) {
+      setFormError('کم از کم 1 ٹوکن منتخب کریں۔');
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      // Generate Unique Token for this plan starting from 1
-      const fallbackDisplay = 'PENDING_APPROVAL';
-      setGeneratedTicketDisplay(fallbackDisplay);
-      setStep(3);
-
-      setTimeout(() => {
-        onSuccess(project, fallbackDisplay, undefined);
-      }, 1500);
-
+      // Allocate unique tokens atomically
+      const tokens = await getNextMultipleUniqueTokens(
+        project.id,
+        tokenQuantity,
+        existingActiveProjects,
+        project.startDate
+      );
+      setAllocatedTokens(tokens);
+      setGeneratedTicketDisplay(tokens.map(t => t.tokenDisplay).join(', '));
+      setStep(2); // Proceed to Step 2 for real payment transfer & slip upload!
     } catch (err) {
-      console.error('Error generating token:', err);
-      const fallbackDisplay = 'PENDING_APPROVAL';
-      setGeneratedTicketDisplay(fallbackDisplay);
-      setStep(3);
-
-      setTimeout(() => {
-        onSuccess(project, fallbackDisplay, undefined);
-      }, 1500);
-
+      console.error('Error generating tokens:', err);
+      const prefix = getPlanTokenPrefix(project.id, project.startDate);
+      const fallbackList: Array<{ tokenNumber: number; tokenDisplay: string }> = [];
+      for (let i = 1; i <= tokenQuantity; i++) {
+        fallbackList.push({
+          tokenNumber: i,
+          tokenDisplay: `${prefix}-${String(i).padStart(3, '0')}`
+        });
+      }
+      setAllocatedTokens(fallbackList);
+      setGeneratedTicketDisplay(fallbackList.map(t => t.tokenDisplay).join(', '));
+      setStep(2);
     } finally {
       setIsSubmitting(false);
     }
@@ -225,16 +257,21 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
       const cleanTrx = trxId.toUpperCase().trim().replace(/[^A-Z0-9_-]/g, '');
       const formattedTrx = `TRX-${cleanTrx}`;
       const targetUserId = currentUser?.id || currentUser?.uid || `usr-${Date.now()}`;
-      const paymentId = generatePaymentIdempotencyKey(targetUserId, formattedTrx, project.title, payableAmount);
+      const paymentId = generatePaymentIdempotencyKey(targetUserId, formattedTrx, project.title, totalPayableAmount);
+
+      const ticketDisplays = allocatedTokens.length > 0
+        ? allocatedTokens.map(t => t.tokenDisplay)
+        : [generatedTicketDisplay || 'PENDING_APPROVAL'];
 
       const payment: PaymentRecord = {
         id: paymentId,
         userId: targetUserId,
-        userToken: generatedTicketDisplay || String(generatedTokenNumber),
+        projectId: project.id,
+        userToken: ticketDisplays.join(', '),
         userName: sanitizeText(fullName || currentUser?.name || 'Member'),
         projectName: project.title,
         installmentLabel: paymentLabel,
-        amount: payableAmount,
+        amount: totalPayableAmount,
         date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
         transactionRef: formattedTrx,
         paymentMethod: methodName,
@@ -248,7 +285,7 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
       setStep(3);
 
       setTimeout(() => {
-        onSuccess(project, fallbackDisplay, payment);
+        onSuccess(project, ticketDisplays, payment);
       }, 1500);
     }, 800);
   };
@@ -287,12 +324,17 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
         <div className="bg-[#f1f4f3] px-5 py-2 border-b border-[#e0e3e2] flex items-center justify-between text-xs font-bold font-['Montserrat']">
           <span className={`flex items-center gap-1.5 ${step >= 1 ? 'text-[#98001b]' : 'text-neutral-400'}`}>
             <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step >= 1 ? 'bg-[#98001b] text-white' : 'bg-neutral-300'}`}>1</span>
-            Plan Details
+            Plan & Tokens
+          </span>
+          <span className="text-neutral-300">&rarr;</span>
+          <span className={`flex items-center gap-1.5 ${step >= 2 ? 'text-[#98001b]' : 'text-neutral-400'}`}>
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step >= 2 ? 'bg-[#98001b] text-white' : 'bg-neutral-300'}`}>2</span>
+            Payment & Slip
           </span>
           <span className="text-neutral-300">&rarr;</span>
           <span className={`flex items-center gap-1.5 ${step >= 3 ? 'text-[#98001b]' : 'text-neutral-400'}`}>
-            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step >= 3 ? 'bg-[#98001b] text-white' : 'bg-neutral-300'}`}>2</span>
-            Approval
+            <span className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] ${step >= 3 ? 'bg-[#98001b] text-white' : 'bg-neutral-300'}`}>3</span>
+            Confirmation
           </span>
         </div>
 
@@ -304,32 +346,43 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
             </div>
             <div>
               <h4 className="font-['Montserrat'] font-black text-xl text-[#181c1c]">
-                Enrollment Successful!
+                Enrollment & Payment Submitted!
               </h4>
               <p className="text-xs text-emerald-600 font-urdu font-bold mt-1">
-                آپ کی رجسٹریشن جمع کر دی گئی ہے
+                آپ کی رجسٹریشن اور ادائیگی تصدیق کے لیے جمع کر دی گئی ہے
               </p>
             </div>
 
             <div className="bg-[#f7faf9] border border-[#e0e3e2] p-3.5 rounded-2xl inline-block w-full">
-              <div className="grid grid-cols-2 gap-2 text-left">
+              <div className="space-y-2 text-left">
                 <div>
-                  <p className="text-[10px] text-[#5b403f] font-semibold uppercase">Assigned Unique Token</p>
-                  <p className="font-['Montserrat'] font-black text-lg text-emerald-700 font-mono">
-                    {generatedTicketDisplay}
+                  <p className="text-[10px] text-[#5b403f] font-semibold uppercase">
+                    Assigned Unique Token{allocatedTokens.length > 1 ? 's' : ''} ({allocatedTokens.length} Tokens)
                   </p>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {allocatedTokens.map(t => (
+                      <span key={t.tokenDisplay} className="bg-[#98001b] text-white font-mono font-bold text-xs px-2.5 py-1 rounded-lg">
+                        {t.tokenDisplay}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-                <div>
-                  <p className="text-[10px] text-[#5b403f] font-semibold uppercase">Token Amount Pending</p>
-                  <p className="font-['Montserrat'] font-black text-lg text-[#181c1c]">
-                    PKR {payableAmount.toLocaleString()}
-                  </p>
+                <div className="pt-2 border-t border-[#e0e3e2] flex justify-between items-center">
+                  <div>
+                    <p className="text-[10px] text-[#5b403f] font-semibold uppercase">Total Amount</p>
+                    <p className="font-['Montserrat'] font-black text-lg text-[#181c1c]">
+                      PKR {totalPayableAmount.toLocaleString()}
+                    </p>
+                  </div>
+                  <span className="bg-amber-100 text-amber-900 text-xs font-bold px-3 py-1 rounded-full">
+                    UNDER REVIEW
+                  </span>
                 </div>
               </div>
             </div>
 
             <p className="text-xs text-[#5b403f] font-urdu leading-relaxed">
-              براہ کرم ڈیش بورڈ کے "Payments & Slips" سیکشن سے اپنی پہلی قسط (Token Amount) ادا کریں۔
+              ایڈمن کی تصدیق کے بعد آپ کا ٹوکن ایکٹیو ہو جائے گا اور آفیشل رسید جاری ہو جائے گی۔
             </p>
 
             <button
@@ -367,11 +420,90 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
               </div>
             </div>
 
-            {monthsPassed > 0 && (
-              <div className="bg-[#fff8f8] border border-[#98001b]/30 p-3 rounded-xl">
-                <p className="text-[11px] text-[#98001b] font-bold leading-relaxed font-urdu text-right">
-                  یہ اسکیم {monthsPassed} ماہ پہلے شروع ہو چکی ہے۔ اس میں شامل ہونے کے لئے آپ کو پچھلے {monthsPassed} ماہ کی بقایا جات اور موجودہ قسط ملا کر (کل {monthsPassed + 1} ماہ کی رقم PKR {payableAmount.toLocaleString()}) ایک ساتھ ادا کرنی ہوگی۔
-                </p>
+            {/* Token Quantity Selector (1, 2, 3, 4, 5, or more) */}
+            <div className="bg-[#f7faf9] border border-[#e0e3e2] p-3.5 rounded-2xl space-y-2.5">
+              <div className="flex items-center justify-between">
+                <div>
+                  <label className="block text-xs font-bold text-[#181c1c] uppercase">
+                    Select Number of Tokens (ٹوکنز کی تعداد)
+                  </label>
+                  <p className="text-[10px] text-[#5b403f] font-urdu">
+                    ہر ٹوکن کو الگ اور منفرد نمبر (Unique Token Number) الاٹ کیا جائے گا۔
+                  </p>
+                </div>
+                <span className="bg-[#98001b] text-white text-xs font-bold px-2.5 py-1 rounded-xl font-mono">
+                  {tokenQuantity} {tokenQuantity === 1 ? 'Token' : 'Tokens'}
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2">
+                {[1, 2, 3, 4, 5].map((num) => (
+                  <button
+                    key={num}
+                    type="button"
+                    onClick={() => setTokenQuantity(num)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold border-2 transition-all cursor-pointer ${
+                      tokenQuantity === num
+                        ? 'bg-[#98001b] text-white border-[#98001b] shadow-xs'
+                        : 'bg-white text-[#181c1c] border-[#e0e3e2] hover:border-neutral-400'
+                    }`}
+                  >
+                    {num} {num === 1 ? 'Token' : 'Tokens'}
+                  </button>
+                ))}
+              </div>
+
+              {/* Custom / Stepper control */}
+              <div className="flex items-center justify-between pt-1 border-t border-[#e0e3e2] text-xs">
+                <span className="text-[#5b403f] font-urdu text-[11px]">یا اپنی مرضی کی تعداد منتخب کریں:</span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setTokenQuantity(prev => Math.max(1, prev - 1))}
+                    disabled={tokenQuantity <= 1}
+                    className="w-7 h-7 rounded-lg bg-white border border-[#e0e3e2] flex items-center justify-center font-bold text-[#181c1c] disabled:opacity-40 cursor-pointer"
+                  >
+                    <Minus className="w-3.5 h-3.5" />
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={tokenQuantity}
+                    onChange={(e) => setTokenQuantity(Math.max(1, Math.min(50, parseInt(e.target.value) || 1)))}
+                    className="w-14 text-center font-bold font-mono py-1 rounded-lg bg-white border border-[#e0e3e2] text-xs outline-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setTokenQuantity(prev => Math.min(50, prev + 1))}
+                    disabled={tokenQuantity >= 50}
+                    className="w-7 h-7 rounded-lg bg-white border border-[#e0e3e2] flex items-center justify-center font-bold text-[#181c1c] disabled:opacity-40 cursor-pointer"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Scheme Start Arrears Notice */}
+            {arrears.monthsPassed > 0 && (
+              <div className="bg-[#fff8f8] border border-[#98001b]/30 p-3.5 rounded-2xl space-y-1.5">
+                <div className="flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-[#98001b] shrink-0 mt-0.5" />
+                  <div className="space-y-1">
+                    <p className="text-xs text-[#98001b] font-bold leading-relaxed font-urdu">
+                      یہ اسکیم {arrears.monthsPassed} ماہ پہلے شروع ہو چکی ہے۔
+                      اس میں شامل ہونے کے لیے پچھلے {arrears.overdueMonthsCount} ماہ کے بقایا جات اور موجودہ ماہ کی قسط ملا کر کل {arrears.unpaidMonths} اقساط (PKR {totalPayablePerToken.toLocaleString()} فی ٹوکن) ادا کرنا ہوں گی۔
+                    </p>
+                    <div className="text-[11px] text-[#5b403f] font-mono">
+                      {tokenQuantity > 1 ? (
+                        <span>کل واجب الادا ({tokenQuantity} ٹوکنز): {tokenQuantity} &times; PKR {totalPayablePerToken.toLocaleString()} = <strong className="text-[#98001b]">PKR {totalPayableAmount.toLocaleString()}</strong></span>
+                      ) : (
+                        <span>کل واجب الادا (1 ٹوکن): {arrears.unpaidMonths} Months &times; PKR {baseKist.toLocaleString()} = <strong className="text-[#98001b]">PKR {totalPayableAmount.toLocaleString()}</strong></span>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
@@ -457,10 +589,10 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
               className="w-full gold-gradient text-[#261900] font-['Montserrat'] font-extrabold text-sm py-3.5 rounded-full shadow-lg hover:brightness-105 transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98"
             >
               {isSubmitting ? (
-                <span>Generating Unique Token...</span>
+                <span>Allocating {tokenQuantity} Unique Token{tokenQuantity > 1 ? 's' : ''}...</span>
               ) : (
                 <>
-                  <span>NEXT: ENROLL IN PLAN (اگلا مرحلہ: شامل ہوں)</span>
+                  <span>PROCEED TO PAYMENT (ادائیگی کے لیے آگے بڑھیں - PKR {totalPayableAmount.toLocaleString()})</span>
                   <ArrowRight className="w-4 h-4" />
                 </>
               )}
@@ -469,20 +601,34 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
         ) : (
           /* STEP 2: PAYMENT OPTION & ACCOUNT DETAILS */
           <form onSubmit={handleFinalPaymentSubmit} className="p-5 space-y-4">
-            {/* Generated Unique Token Banner */}
-            <div className="bg-[#181c1c] text-white p-3.5 rounded-2xl border border-[#fed488]/40 flex items-center justify-between">
-              <div>
-                <span className="text-[10px] text-[#fed488] font-bold uppercase block">Your Unique Token Number</span>
-                <span className="font-['Montserrat'] font-black text-base text-white font-mono">
-                  {generatedTicketDisplay}
-                </span>
+            {/* Generated Unique Tokens Banner */}
+            <div className="bg-[#181c1c] text-white p-3.5 rounded-2xl border border-[#fed488]/40 space-y-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="text-[10px] text-[#fed488] font-bold uppercase block">
+                    Allotted Unique Token{allocatedTokens.length > 1 ? 's' : ''} ({allocatedTokens.length} Tokens)
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {allocatedTokens.map((t) => (
+                      <span key={t.tokenDisplay} className="font-['Montserrat'] font-black text-xs bg-white/20 text-[#fed488] px-2 py-0.5 rounded-md font-mono border border-[#fed488]/30">
+                        {t.tokenDisplay}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <span className="text-[10px] text-neutral-400 uppercase block">Total Amount Due</span>
+                  <span className="font-['Montserrat'] font-black text-base text-[#fed488]">
+                    PKR {totalPayableAmount.toLocaleString()}
+                  </span>
+                </div>
               </div>
-              <div className="text-right">
-                <span className="text-[10px] text-neutral-400 uppercase block">Amount Due</span>
-                <span className="font-['Montserrat'] font-black text-sm text-[#fed488]">
-                  PKR {payableAmount.toLocaleString()}
-                </span>
-              </div>
+
+              {arrears.monthsPassed > 0 && (
+                <p className="text-[10.5px] text-neutral-300 font-urdu border-t border-white/10 pt-1.5 leading-relaxed">
+                  ℹ️ {allocatedTokens.length} ٹوکنز کے لیے {arrears.monthsPassed} پچھلے بقایا ماہ + 1 موجودہ ماہ = کل {arrears.unpaidMonths} اقساط فی ٹوکن کی رقم۔
+                </p>
+              )}
             </div>
 
             {/* Payment Method Selector (EasyPaisa, JazzCash, Bank) */}
@@ -667,7 +813,7 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
                 onClick={() => setStep(1)}
                 className="px-4 py-3 rounded-full border border-neutral-300 font-bold text-xs text-neutral-600 hover:bg-neutral-100 cursor-pointer"
               >
-                Back
+                Back (واپس)
               </button>
               <button
                 type="submit"
@@ -678,7 +824,7 @@ export const JoinProjectModal: React.FC<JoinProjectModalProps> = ({
                   <span>Submitting to Admin...</span>
                 ) : (
                   <>
-                    <span>SUBMIT FOR ADMIN APPROVAL (PKR {payableAmount.toLocaleString()})</span>
+                    <span>SUBMIT FOR ADMIN APPROVAL (PKR {totalPayableAmount.toLocaleString()})</span>
                     <ArrowRight className="w-4 h-4" />
                   </>
                 )}

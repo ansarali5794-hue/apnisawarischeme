@@ -454,21 +454,21 @@ export function App() {
   };
 
   // When enrollment succeeds:
-  // Creates active enrollment with unique token and registers customer payment under review (Pending Approval)
-  const handleEnrollSuccess = (project: VehicleProject, ticket: string, paymentRecord?: PaymentRecord) => {
+  // Creates active enrollment with unique token(s) and registers customer payment under review (Pending Approval)
+  const handleEnrollSuccess = (project: VehicleProject, tickets: string | string[], paymentRecord?: PaymentRecord) => {
     const isCommittee = true;
     const targetUserId = user?.id || user?.uid || `usr-${Date.now()}`;
-    const enrollmentId = `act-${targetUserId}-${project.id}-${Date.now()}`;
+    const tokenList = Array.isArray(tickets) ? tickets : [tickets];
 
-    const newActiveProject: UserActiveProject = {
-      id: enrollmentId,
+    const newActiveProjectsList: UserActiveProject[] = tokenList.map((tok, index) => ({
+      id: `act-${targetUserId}-${project.id}-${Date.now()}-${index}`,
       userId: targetUserId,
       userName: user?.name || user?.full_name || 'Member',
-      userToken: ticket,
+      userToken: tok,
       projectId: project.id,
       projectTitle: project.title,
       projectType: `${project.durationMonths || 36} Months Scheme`,
-      ticketNumber: ticket,
+      ticketNumber: tok,
       monthlyKist: project.monthlyKist,
       tokenAmount: project.tokenPrice,
       totalUnits: project.durationMonths,
@@ -476,18 +476,10 @@ export function App() {
       nextDueOrDrawDate: isCommittee ? '15 Nov 2024' : '01 Dec 2024',
       imageUrl: project.imageUrl,
       status: 'PENDING'
-    };
+    }));
 
-    setActiveProjects((prev) => {
-      const idx = prev.findIndex((p) => p.id === enrollmentId);
-      if (idx >= 0) {
-        const copy = [...prev];
-        copy[idx] = newActiveProject;
-        return copy;
-      }
-      return [newActiveProject, ...prev];
-    });
-    saveActiveProjectToFirestore(newActiveProject);
+    setActiveProjects((prev) => [...newActiveProjectsList, ...prev]);
+    newActiveProjectsList.forEach(act => saveActiveProjectToFirestore(act));
 
     if (paymentRecord) {
       const paymentId = paymentRecord.id.startsWith('pay_')
@@ -510,7 +502,7 @@ export function App() {
     if (user) {
       const updatedUser: UserProfile = {
         ...user,
-        activeTokensCount: (user.activeTokensCount || 0) + 1
+        activeTokensCount: (user.activeTokensCount || 0) + tokenList.length
       };
       setUser(updatedUser);
       saveUserToFirestore(updatedUser);
@@ -575,7 +567,8 @@ export function App() {
       setIsAdminPreview(false);
     }
 
-    setCurrentTab(tab);
+    const resolvedTab = (tab as string) === 'projects' ? 'home' : tab;
+    setCurrentTab(resolvedTab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -701,15 +694,44 @@ export function App() {
                 );
                 savePaymentToFirestore(approvedPayment);
 
-                // Update active project unit count
+                // Update active project unit count and activate status
+                const pTokens = (approvedPayment.userToken || '')
+                  .split(',')
+                  .map((t) => t.trim().toUpperCase())
+                  .filter(Boolean);
+
+                let unitsToAdd = 1;
+                const matchMonths =
+                  (approvedPayment.installmentLabel || '').match(/Total\s*(\d+)\s*Mos/i) ||
+                  (approvedPayment.installmentLabel || '').match(/(\d+)\s*(?:past\s*overdue\s*months|months)/i);
+                if (matchMonths && matchMonths[1]) {
+                  unitsToAdd = parseInt(matchMonths[1], 10) || 1;
+                }
+
                 setActiveProjects((prev) => {
                   const updated = prev.map((act) => {
-                    if (
-                      act.projectTitle.toLowerCase().includes(approvedPayment.projectName.toLowerCase()) ||
-                      approvedPayment.projectName.toLowerCase().includes(act.projectTitle.toLowerCase())
-                    ) {
-                      const newUnits = Math.min(act.totalUnits, act.completedUnits + 1);
-                      const actUpdated = { ...act, completedUnits: newUnits };
+                    const actTitle = act.projectTitle.toLowerCase().trim();
+                    const payTitle = approvedPayment.projectName.toLowerCase().trim();
+                    const isProjectMatch =
+                      actTitle === payTitle ||
+                      actTitle.includes(payTitle) ||
+                      payTitle.includes(actTitle);
+
+                    const isUserMatch =
+                      !approvedPayment.userId ||
+                      act.userId === approvedPayment.userId;
+
+                    const currentTicket = (act.ticketNumber || '').trim().toUpperCase();
+                    const isTokenMatch =
+                      pTokens.length === 0 || pTokens.includes(currentTicket);
+
+                    if (isProjectMatch && isUserMatch && isTokenMatch) {
+                      const newUnits = Math.min(act.totalUnits, (act.completedUnits || 0) + unitsToAdd);
+                      const actUpdated: UserActiveProject = {
+                        ...act,
+                        status: 'ACTIVE',
+                        completedUnits: newUnits
+                      };
                       saveActiveProjectToFirestore(actUpdated);
                       return actUpdated;
                     }
@@ -997,7 +1019,7 @@ export function App() {
               </div>
             ) : (
               <>
-                {currentTab === 'home' && (
+                {(currentTab === 'home' || currentTab === 'projects') && (
                   <HomeView
                     projects={allProjects}
                     onSelectProject={handleSelectProject}
@@ -1134,6 +1156,7 @@ export function App() {
         bankAccounts={bankAccounts}
         currentUser={effectiveUser}
         activeProjects={activeProjects}
+        allProjects={allProjects}
       />
 
       <JoinProjectModal

@@ -57,7 +57,7 @@ import { AdminApprovalsSection } from '../components/AdminApprovalsSection';
 import { AdminStatementsSection } from '../components/AdminStatementsSection';
 import { AdminLiveDrawModal } from '../components/AdminLiveDrawModal';
 import { ErrorBoundary } from '../components/ErrorBoundary';
-import { AdminTokenLedgerSection } from "../components/AdminTokenLedgerSection";
+import { AdminSchemeTokenRegister } from '../components/AdminSchemeTokenRegister';
 
 interface AdminViewProps {
   onBack: () => void;
@@ -118,6 +118,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onUpdateProject,
   onDeleteProject,
   onDeleteActiveProject,
+  onUpdateActiveProject,
   onAddUser,
   onUpdateUser,
   onDeleteUser,
@@ -134,8 +135,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
   onLangChange
 }) => {
   const [activeSection, setActiveSection] = useState<
-    'ledger' | 'approvals' | 'overview' | 'projects' | 'users' | 'payments' | 'statements' | 'winners' | 'accounts' | 'security' | 'terms'
-  >('approvals');
+    'registers' | 'approvals' | 'overview' | 'projects' | 'users' | 'payments' | 'statements' | 'winners' | 'accounts' | 'security' | 'terms'
+  >('registers');
 
   const [showLiveBallotModal, setShowLiveBallotModal] = useState<boolean>(false);
 
@@ -222,18 +223,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setEditingProject(null);
     setProjectFormData({
       title: 'HONDA CD 70cc (2026)',
-      subtitle: '70cc Fuel Efficient Bike',
+      subtitle: '36 Month Committee Plan',
+      projectType: 'monthly',
       category: 'committee',
       vehicleType: 'bike',
       tokenPrice: 5000,
       monthlyKist: 5000,
-      durationMonths: 24,
-      totalMembers: 450,
-      statusBadge: 'Booking Open',
+      durationMonths: 36,
+      totalMembers: 200,
+      statusBadge: 'OPEN',
+      startDate: new Date().toISOString().split('T')[0],
       imageUrl: 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&q=80&w=800',
-      description: 'Zero meter brand new Honda CD 70 with complete documents, manufacturer warranty and registration support.',
-      qurstandaziBenefit: '              !',
-      nonWinnersRefundText: '100% Refund guaranteed or brand new vehicle delivery on scheme maturity completion.',
+      description: '36-month Honda CD70 committee scheme. Monthly installment is PKR 5,000. Every month 1 lucky winner receives a brand new Honda CD 70 with remaining installments waived. Non-winners get 100% full payment refund after 36 months.',
+      qurstandaziBenefit: 'Naam Aane Par Agli Tamam Qistain MAAF!',
+      nonWinnersRefundText: 'Non-winner ko 36 months ke baad Honda CD 70 bike ki full payment return ki jaye gi',
       specs: {
         engine: '70cc 4-Stroke Air-Cooled',
         transmission: '4-Speed Constant Mesh',
@@ -248,9 +251,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   const handleOpenEditProject = (proj: VehicleProject) => {
     setEditingProject(proj);
+    const isOneTime = proj.projectType === 'one-time' || (proj.category === 'luckydraw' && !proj.monthlyKist);
     setProjectFormData({
       ...proj,
-      category: proj.category || 'committee',
+      projectType: isOneTime ? 'one-time' : 'monthly',
+      category: isOneTime ? 'luckydraw' : 'committee',
+      startDate: proj.startDate || new Date().toISOString().split('T')[0],
+      durationMonths: proj.durationMonths || (isOneTime ? 1 : 36),
       vehicleType: proj.vehicleType || 'bike',
       specs: proj.specs || {
         engine: '70cc 4-Stroke',
@@ -261,8 +268,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
       },
       features: proj.features || ['Brand New', 'Original Documents'],
       description: proj.description || '',
-      qurstandaziBenefit: proj.qurstandaziBenefit || '            !',
-      nonWinnersRefundText: proj.nonWinnersRefundText || '100% Refund guaranteed or vehicle on scheme maturity'
+      qurstandaziBenefit: proj.qurstandaziBenefit || (isOneTime ? 'Transparent Digital Lucky Draw on Members Completion!' : 'Naam Aane Par Agli Tamam Qistain MAAF!'),
+      nonWinnersRefundText: proj.nonWinnersRefundText || (isOneTime ? 'One-time token investment. Winner takes prize upon draw. No refund for non-winners.' : 'Non-winner ko scheme duration ke baad full payment return ki jaye gi')
     });
     setShowProjectModal(true);
   };
@@ -369,37 +376,42 @@ export const AdminView: React.FC<AdminViewProps> = ({
     e.preventDefault();
     if (!projectFormData.title) return;
 
+    const isOneTime = projectFormData.projectType === 'one-time';
+
     const payload: VehicleProject = {
       id: editingProject ? editingProject.id : `proj-${Date.now()}`,
       title: projectFormData.title || 'New Scheme',
-      subtitle: projectFormData.subtitle || 'Vehicle Scheme',
-      tokenPrice: projectFormData.tokenPrice === "" || projectFormData.tokenPrice === undefined ? 0 : Number(projectFormData.tokenPrice),
-      tokenAmount: projectFormData.tokenPrice === "" || projectFormData.tokenPrice === undefined ? 0 : Number(projectFormData.tokenPrice),
-      monthlyKist: projectFormData.monthlyKist === "" || projectFormData.monthlyKist === undefined ? 0 : Number(projectFormData.monthlyKist),
-      installmentAmount: projectFormData.monthlyKist === "" || projectFormData.monthlyKist === undefined ? 0 : Number(projectFormData.monthlyKist),
-      durationMonths: projectFormData.durationMonths === "" || projectFormData.durationMonths === undefined ? 0 : Number(projectFormData.durationMonths),
-      totalMembers: projectFormData.totalMembers === "" || projectFormData.totalMembers === undefined ? 0 : Number(projectFormData.totalMembers),
-      statusBadge: projectFormData.statusBadge || 'Booking Open',
-      category: projectFormData.category || 'committee',
+      subtitle: projectFormData.subtitle || (isOneTime ? 'One-Time Lucky Draw Project' : `${projectFormData.durationMonths || 36} Month Committee Plan`),
+      projectType: isOneTime ? 'one-time' : 'monthly',
+      category: isOneTime ? 'luckydraw' : 'committee',
+      startDate: projectFormData.startDate || editingProject?.startDate || new Date().toISOString().split('T')[0],
+      tokenPrice: Number(projectFormData.tokenPrice) || Number(projectFormData.monthlyKist) || 0,
+      tokenAmount: Number(projectFormData.tokenPrice) || Number(projectFormData.monthlyKist) || 0,
+      monthlyKist: isOneTime ? 0 : (Number(projectFormData.monthlyKist) || 0),
+      installmentAmount: isOneTime ? 0 : (Number(projectFormData.monthlyKist) || 0),
+      durationMonths: isOneTime ? 1 : (Number(projectFormData.durationMonths) || 36),
+      totalMembers: Number(projectFormData.totalMembers) || 0,
+      statusBadge: projectFormData.statusBadge || 'OPEN',
       vehicleType: projectFormData.vehicleType || 'bike',
       imageUrl:
         projectFormData.imageUrl ||
         'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&q=80&w=800',
       description: projectFormData.description || '',
+      monthlyDrawPrize: projectFormData.monthlyDrawPrize || editingProject?.monthlyDrawPrize || `1 Brand New ${projectFormData.title}`,
       qurstandaziBenefit:
         projectFormData.qurstandaziBenefit ||
-        '             !',
+        (isOneTime ? 'Transparent Digital Lucky Draw on Members Completion!' : 'Naam Aane Par Agli Tamam Qistain MAAF!'),
       nonWinnersRefundText:
         projectFormData.nonWinnersRefundText ||
-        '100% Refund guaranteed or vehicle on scheme maturity',
-      specs: projectFormData.specs || {
-        engine: '70cc 4-Stroke',
+        (isOneTime ? 'One-time token investment. Winner takes prize upon draw. No refund for non-winners.' : 'Non-winner ko 36 months ke baad full payment return ki jaye gi'),
+      specs: projectFormData.specs || editingProject?.specs || {
+        engine: 'Standard',
         transmission: 'Manual',
-        fuelCapacity: '9L',
-        mileage: '60 KM/L',
-        warranty: '3 Years'
+        fuelCapacity: 'Standard',
+        mileage: 'Standard',
+        warranty: 'Standard'
       },
-      features: projectFormData.features || ['Brand New', 'Original Documents']
+      features: projectFormData.features || editingProject?.features || ['Brand New Zero Meter', 'Complete Original Documents']
     };
 
     if (editingProject && onUpdateProject) {
@@ -408,6 +420,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       onAddProject(payload);
     }
     setShowProjectModal(false);
+    alert(currentLang === 'ur' ? 'اسکیم کامیابی کے ساتھ اپڈیٹ اور محفوظ ہوگئی!' : 'Scheme updated and saved successfully!');
   };
 
   const handleSaveUserSubmit = (e: React.FormEvent) => {
@@ -570,17 +583,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
       {/* Admin Navigation Pills - Fixed with shrink-0 and overflow scroll */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 hide-scrollbar scrollbar-none">
         {[
-          { id: 'ledger', label: currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'Token Ledger', icon: FileSpreadsheet },
-          { id: 'approvals', label: currentLang === 'sd' ? '' : currentLang === 'ur' ? '' : 'Approvals Queue', icon: ShieldCheck },
-          { id: 'overview', label: currentLang === 'sd' ? '' : currentLang === 'ur' ? '' : 'Overview', icon: TrendingUp },
-          { id: 'projects', label: currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '  ' : 'Schemes & Cars', icon: Car },
-          { id: 'users', label: currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '  ' : 'Customers & Members', icon: Users },
-          { id: 'payments', label: currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '  ' : 'Payments & Slips', icon: CreditCard },
-          { id: 'statements', label: currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'Account Statements', icon: FileSpreadsheet },
-          { id: 'winners', label: currentLang === 'sd' ? '' : currentLang === 'ur' ? '' : 'Winners', icon: Award },
-          { id: 'accounts', label: currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'Bank Accounts', icon: Building2 },
-          { id: 'security', label: currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'Admin PIN', icon: Lock },
-          { id: 'terms', label: currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '  ' : 'Terms & Conditions', icon: FileText }
+          { id: 'registers', label: currentLang === 'sd' ? 'اسڪيم ٽوڪن رجسٽر' : currentLang === 'ur' ? 'اسکیم ٹوکن رجسٹر' : 'Scheme Token Register', icon: Layers },
+          { id: 'approvals', label: currentLang === 'sd' ? 'منظوري قطار' : currentLang === 'ur' ? 'منظوری قطار' : 'Approvals Queue', icon: ShieldCheck },
+          { id: 'overview', label: currentLang === 'sd' ? 'مجموعي جائزي' : currentLang === 'ur' ? 'مجموعی جائزہ' : 'Overview', icon: TrendingUp },
+          { id: 'projects', label: currentLang === 'sd' ? 'گاڏيون ۽ اسڪيمون' : currentLang === 'ur' ? 'گاڑیاں اور اسکیمیں' : 'Schemes & Cars', icon: Car },
+          { id: 'users', label: currentLang === 'sd' ? 'ڪسٽمر ۽ رڪن' : currentLang === 'ur' ? 'کسٹمرز اور ممبرز' : 'Customers & Members', icon: Users },
+          { id: 'payments', label: currentLang === 'sd' ? 'ادائيگيون ۽ رسيدون' : currentLang === 'ur' ? 'ادائیگی اور رسیدیں' : 'Payments & Slips', icon: CreditCard },
+          { id: 'statements', label: currentLang === 'sd' ? 'کاتي اسٽيٽمينٽ' : currentLang === 'ur' ? 'کھاتہ اسٹیٹمنٹ' : 'Account Statements', icon: FileSpreadsheet },
+          { id: 'winners', label: currentLang === 'sd' ? 'ڪامياب اميدوار' : currentLang === 'ur' ? 'کامیاب امیدوار' : 'Winners', icon: Award },
+          { id: 'accounts', label: currentLang === 'sd' ? 'بينڪ اڪائونٽس' : currentLang === 'ur' ? 'بینک اکاؤنٹس' : 'Bank Accounts', icon: Building2 },
+          { id: 'security', label: currentLang === 'sd' ? 'ايڊمن پن' : currentLang === 'ur' ? 'ایڈمن پن' : 'Admin PIN', icon: Lock },
+          { id: 'terms', label: currentLang === 'sd' ? 'شرطون ۽ ضوابط' : currentLang === 'ur' ? 'شرائط و ضوابط' : 'Terms & Conditions', icon: FileText }
         ].map((item) => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;
@@ -602,18 +615,23 @@ export const AdminView: React.FC<AdminViewProps> = ({
       </div>
 
       {/* ========================================================= */}
-      {/* 0. APPROVALS TAB */}
+      {/* 0. SCHEME TOKEN REGISTERS & AUTO-ALLOTMENT */}
       {/* ========================================================= */}
-      {/* ========================================================= */}
-      {activeSection === 'ledger' && (
-        <AdminTokenLedgerSection
+      {activeSection === 'registers' && (
+        <AdminSchemeTokenRegister
           activeProjects={activeProjects}
           users={users}
           projects={projects}
           payments={payments}
+          winners={winners}
           onDeleteActiveProject={onDeleteActiveProject}
+          currentLang={currentLang}
         />
       )}
+
+      {/* ========================================================= */}
+      {/* 1. APPROVALS TAB */}
+      {/* ========================================================= */}
 
       {activeSection === 'approvals' && (
         <AdminApprovalsSection
@@ -873,14 +891,22 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
 
           <div className="space-y-2.5">
-            {(payments || []).map((payment) => (
+            {(payments || []).map((payment) => {
+              const paymentUser = (users || []).find(
+                u => u.id === payment.userId || 
+                     u.uid === payment.userId || 
+                     u.memberId === payment.userId ||
+                     (payment.userName && u.name && u.name.trim().toLowerCase() === payment.userName.trim().toLowerCase())
+              );
+
+              return (
               <div
                 key={payment.id}
                 className="bg-white dark:bg-[#2d3131] p-4 rounded-2xl border border-[#e0e3e2] dark:border-neutral-700 shadow-xs space-y-2.5"
               >
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                   <div>
-                    <div className="flex items-center gap-2">
+                    <div className="flex flex-wrap items-center gap-2">
                       <h4 className="font-bold text-xs text-[#181c1c] dark:text-white">
                         {payment.projectName}
                       </h4>
@@ -894,7 +920,29 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           ({payment.userName})
                         </span>
                       )}
+                      {paymentUser?.memberId && (
+                        <span className="text-[10px] font-mono font-bold bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 px-1.5 py-0.5 rounded">
+                          ID: {paymentUser.memberId}
+                        </span>
+                      )}
                     </div>
+
+                    {paymentUser && (
+                      <div className="flex flex-wrap items-center gap-3 text-[11px] text-neutral-600 dark:text-neutral-400 mt-1">
+                        {paymentUser.phone && (
+                          <span>
+                            Tel:{' '}
+                            <a href={`tel:${paymentUser.phone}`} className="text-blue-600 font-bold hover:underline">
+                              {paymentUser.phone}
+                            </a>
+                          </span>
+                        )}
+                        {paymentUser.cnic && (
+                          <span>CNIC: <strong className="font-mono text-neutral-800 dark:text-neutral-200">{paymentUser.cnic}</strong></span>
+                        )}
+                      </div>
+                    )}
+
                     <p className="text-[11px] text-[#5b403f] dark:text-neutral-400 mt-0.5">
                       {payment.installmentLabel} &bull; Method:{' '}
                       <strong className="text-[#181c1c] dark:text-white">{payment.paymentMethod}</strong>
@@ -936,7 +984,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           title="View Payment Screenshot / Slip"
                         >
                           <Eye className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>{currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'View Slip'}</span>
+                          <span>{currentLang === 'sd' ? 'رسيد ڏسو' : currentLang === 'ur' ? 'رسید دیکھیں' : 'View Slip'}</span>
                         </button>
                       )}
 
@@ -945,7 +993,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                         className="px-2.5 py-1.5 rounded-lg bg-[#f7faf9] hover:bg-[#ebeeed] dark:bg-neutral-800 text-[#181c1c] dark:text-white font-bold text-xs border border-[#e0e3e2] flex items-center gap-1 cursor-pointer"
                       >
                         <Edit className="w-3.5 h-3.5 text-[#98001b]" />
-                        <span>{currentLang === 'sd' ? '' : currentLang === 'ur' ? '' : 'Edit'}</span>
+                        <span>{currentLang === 'sd' ? 'ترميم' : currentLang === 'ur' ? 'ترمیم' : 'Edit'}</span>
                       </button>
 
                       {onDeletePayment && (
@@ -963,7 +1011,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                 {payment.rejectReason && (
                   <p className="text-[11px] text-red-700 bg-red-50 p-2 rounded-lg border border-red-200">
-                    {currentLang === 'sd' ? '   : ' : currentLang === 'ur' ? '   : ' : 'Rejection Reason: '}
+                    {currentLang === 'sd' ? 'رد ڪرڻ جو سبب: ' : currentLang === 'ur' ? 'مسترد کرنے کی وجہ: ' : 'Rejection Reason: '}
                     {payment.rejectReason}
                   </p>
                 )}
@@ -975,7 +1023,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs py-2 rounded-xl flex items-center justify-center gap-1 cursor-pointer shadow-xs"
                     >
                       <CheckCircle2 className="w-3.5 h-3.5" />
-                      <span>{currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'Approve & Verify'}</span>
+                      <span>{currentLang === 'sd' ? 'منظور ۽ تصديق ڪريو' : currentLang === 'ur' ? 'تصدیق و منظوری کریں' : 'Approve & Verify'}</span>
                     </button>
                     <button
                       onClick={() => {
@@ -985,12 +1033,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       className="px-4 bg-red-600 hover:bg-red-700 text-white font-bold text-xs py-2 rounded-xl flex items-center justify-center gap-1 cursor-pointer shadow-xs"
                     >
                       <XCircle className="w-3.5 h-3.5" />
-                      <span>{currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'Reject'}</span>
+                      <span>{currentLang === 'sd' ? 'رد ڪريو' : currentLang === 'ur' ? 'مسترد کریں' : 'Reject'}</span>
                     </button>
                   </div>
                 )}
               </div>
-            ))}
+            );
+          })}
           </div>
         </div>
       )}
@@ -1369,72 +1418,111 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   : 'Manage legal terms, clauses and policy agreements'}
               </p>
             </div>
-            <button
-              onClick={() => {
-                setEditingTermIndex(null);
-                setTermFormData({
-                  number: `${(terms || []).length + 1}`,
-                  title: currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'New Clause',
-                  paragraphsText: currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '     ' : 'Enter clause details here.'
-                });
-                setShowTermModal(true);
-              }}
-              className="bg-[#98001b] hover:bg-[#be1e2d] text-white px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
-            >
-              <Plus className="w-4 h-4" />
-              <span>{currentLang === 'sd' ? '   ' : currentLang === 'ur' ? '   ' : 'Add New Clause'}</span>
-            </button>
-            <button
-              onClick={() => {
-                if (onUpdateTerms && window.confirm('Are you sure you want to restore the original Urdu terms? This will overwrite the current terms.')) {
-                  onUpdateTerms(EXACT_TERMS_SECTIONS);
-                }
-              }}
-              className="bg-neutral-800 hover:bg-neutral-900 text-white px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm ml-2"
-            >
-              <RotateCcw className="w-4 h-4" />
-              <span>Restore Original</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => {
+                  setEditingTermIndex(null);
+                  setTermFormData({
+                    number: `${(terms || []).length + 1}`,
+                    title: '',
+                    paragraphsText: ''
+                  });
+                  setShowTermModal(true);
+                }}
+                className="bg-[#98001b] hover:bg-[#be1e2d] text-white px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                id="btn-admin-add-clause"
+              >
+                <Plus className="w-4 h-4" />
+                <span>{currentLang === 'sd' ? 'نئين شق شامل ڪريو' : currentLang === 'ur' ? 'نئی شق شامل کریں' : 'Add New Clause'}</span>
+              </button>
+              <button
+                onClick={() => {
+                  const confirmMsg = currentLang === 'ur'
+                    ? 'کیا آپ واقعی تمام اصل (Default) شرائط و ضوابط بحال کرنا چاہتے ہیں؟'
+                    : 'Are you sure you want to restore original default terms?';
+                  if (onUpdateTerms && window.confirm(confirmMsg)) {
+                    onUpdateTerms(EXACT_TERMS_SECTIONS);
+                  }
+                }}
+                className="bg-neutral-800 hover:bg-neutral-900 text-white px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm transition-colors"
+                id="btn-admin-restore-terms"
+              >
+                <RotateCcw className="w-4 h-4" />
+                <span>{currentLang === 'ur' ? 'اصل شرائط بحال کریں' : 'Restore Original'}</span>
+              </button>
+            </div>
           </div>
 
           <div className="space-y-3">
-            {(terms || []).map((t, idx) => (
-              <div
-                key={idx}
-                className="bg-white dark:bg-[#2d3131] p-4 rounded-2xl border border-[#e0e3e2] dark:border-neutral-700 space-y-2"
-              >
-                <div className="flex justify-between items-center border-b pb-2">
-                  <div className="flex items-center gap-2">
-                    <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[#fed488]/40 text-[#775a19]">
-                      #{t.number}
-                    </span>
-                    <h4 className="font-bold text-sm text-[#181c1c] dark:text-white font-urdu">
-                      {t.title}
-                    </h4>
-                  </div>
-                  <button
-                    onClick={() => {
-                      setEditingTermIndex(idx);
-                      setTermFormData({
-                        number: t.number,
-                        title: t.title,
-                        paragraphsText: (t.paragraphs || []).join('\n\n')
-                      });
-                      setShowTermModal(true);
-                    }}
-                    className="px-3 py-1 rounded-lg bg-[#f7faf9] dark:bg-neutral-800 text-xs font-bold border flex items-center gap-1 cursor-pointer"
-                  >
-                    <Edit className="w-3.5 h-3.5 text-[#98001b]" />
-                    <span>Edit Clause</span>
-                  </button>
-                </div>
-                <div className="text-xs text-neutral-600 dark:text-neutral-300 font-urdu leading-relaxed space-y-1">
-                  {(t.paragraphs || []).map((p, pIdx) => (
-                    <p key={pIdx}>{p}</p>
-                  ))}
-                </div>
+            {(terms || []).length === 0 ? (
+              <div className="bg-white dark:bg-[#2d3131] p-8 rounded-2xl border border-dashed border-[#e0e3e2] dark:border-neutral-700 text-center space-y-2">
+                <FileText className="w-8 h-8 mx-auto text-neutral-400" />
+                <p className="text-xs text-neutral-500 font-urdu">کوئی شق موجود نہیں ہے۔ اوپر دیے گئے بٹن سے نئی شق شامل کریں۔</p>
               </div>
-            ))}
+            ) : (
+              (terms || []).map((t, idx) => (
+                <div
+                  key={idx}
+                  className="bg-white dark:bg-[#2d3131] p-4 rounded-2xl border border-[#e0e3e2] dark:border-neutral-700 space-y-2"
+                >
+                  <div className="flex justify-between items-center border-b border-neutral-100 dark:border-neutral-700/60 pb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[#fed488]/40 text-[#775a19]">
+                        #{t.number}
+                      </span>
+                      <h4 className="font-bold text-sm text-[#181c1c] dark:text-white font-urdu">
+                        {t.title}
+                      </h4>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        onClick={() => {
+                          setEditingTermIndex(idx);
+                          setTermFormData({
+                            number: t.number,
+                            title: t.title,
+                            paragraphsText: (t.paragraphs || []).join('\n\n')
+                          });
+                          setShowTermModal(true);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-[#f7faf9] dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-xs font-bold border border-neutral-200 dark:border-neutral-700 flex items-center gap-1 cursor-pointer transition-colors"
+                        title="Edit Clause"
+                      >
+                        <Edit className="w-3.5 h-3.5 text-[#98001b]" />
+                        <span>{currentLang === 'sd' ? 'ترمیم' : currentLang === 'ur' ? 'تبدیل کریں' : 'Edit'}</span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          const confirmMsg = currentLang === 'ur'
+                            ? `کیا آپ واقعی شق نمبر #${t.number} (${t.title}) کو ڈیلیٹ کرنا چاہتے ہیں؟`
+                            : currentLang === 'sd'
+                            ? `ڇا توھان واقعي شق نمبر #${t.number} ڊليٽ ڪرڻ چاھيو ٿا؟`
+                            : `Are you sure you want to delete Clause #${t.number} (${t.title})?`;
+                          if (window.confirm(confirmMsg)) {
+                            const updated = (terms || []).filter((_, i) => i !== idx);
+                            const renumbered = updated.map((item, i) => ({
+                              ...item,
+                              number: String(i + 1)
+                            }));
+                            if (onUpdateTerms) onUpdateTerms(renumbered);
+                          }
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-xs font-bold border border-red-200 dark:border-red-900/50 flex items-center gap-1 cursor-pointer text-red-600 dark:text-red-400 transition-colors"
+                        title="Delete Clause"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{currentLang === 'sd' ? 'ڊليٽ' : currentLang === 'ur' ? 'ڈیلیٹ' : 'Delete'}</span>
+                      </button>
+                    </div>
+                  </div>
+                  <div className="text-xs text-neutral-600 dark:text-neutral-300 font-urdu leading-relaxed space-y-1">
+                    {(t.paragraphs || []).map((p, pIdx) => (
+                      <p key={pIdx}>{p}</p>
+                    ))}
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       )}
@@ -1470,12 +1558,80 @@ export const AdminView: React.FC<AdminViewProps> = ({
             </div>
 
             <form onSubmit={handleSaveProjectSubmit} className="space-y-4 text-xs">
-              {/* Section 1: Basic Identity */}
+              {/* Section 1: Basic Identity & Scheme Model */}
               <div className="bg-[#f7faf9] dark:bg-neutral-800/60 p-3.5 rounded-2xl border border-[#e0e3e2] dark:border-neutral-700 space-y-3">
                 <span className="font-['Montserrat'] font-bold text-[11px] uppercase tracking-wider text-[#98001b] flex items-center gap-1.5">
                   <Layers className="w-3.5 h-3.5" />
-                  1. Scheme Identity & Settings
+                  1. Scheme Identity & Model
                 </span>
+
+                {/* Scheme Model Choice */}
+                <div>
+                  <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1.5">
+                    Scheme Type / اسکیم کی قسم *
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setProjectFormData({
+                        ...projectFormData,
+                        projectType: 'monthly',
+                        category: 'committee',
+                        durationMonths: projectFormData.durationMonths || 36
+                      })}
+                      className={`p-3 rounded-xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
+                        projectFormData.projectType !== 'one-time'
+                          ? 'border-[#98001b] bg-rose-50/60 dark:bg-rose-950/20 text-[#98001b] dark:text-rose-300 ring-1 ring-[#98001b]'
+                          : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="projectTypeSelection"
+                        checked={projectFormData.projectType !== 'one-time'}
+                        onChange={() => {}}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold text-xs block text-[#181c1c] dark:text-white">Monthly Installment Scheme</span>
+                        <span className="text-[11px] text-neutral-500 dark:text-neutral-400 block mt-0.5">
+                          36 Month Committee Plan • Monthly Kist Required (ماہانہ قسط کمیٹی)
+                        </span>
+                      </div>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setProjectFormData({
+                        ...projectFormData,
+                        projectType: 'one-time',
+                        category: 'luckydraw',
+                        durationMonths: 1,
+                        monthlyKist: 0
+                      })}
+                      className={`p-3 rounded-xl border text-left flex items-start gap-2.5 cursor-pointer transition-all ${
+                        projectFormData.projectType === 'one-time'
+                          ? 'border-[#98001b] bg-rose-50/60 dark:bg-rose-950/20 text-[#98001b] dark:text-rose-300 ring-1 ring-[#98001b]'
+                          : 'border-neutral-200 dark:border-neutral-700 bg-white dark:bg-neutral-800 text-neutral-700 dark:text-neutral-300'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="projectTypeSelection"
+                        checked={projectFormData.projectType === 'one-time'}
+                        onChange={() => {}}
+                        className="mt-0.5"
+                      />
+                      <div>
+                        <span className="font-bold text-xs block text-[#181c1c] dark:text-white">One-Time Lucky Draw</span>
+                        <span className="text-[11px] text-neutral-500 dark:text-neutral-400 block mt-0.5">
+                          One-time Token Only • No Monthly Installment (یک مشت بغیر قسط)
+                        </span>
+                      </div>
+                    </button>
+                  </div>
+                </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
                     <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
@@ -1492,47 +1648,59 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   </div>
                   <div>
                     <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
-                      Start Date *
+                      Start Date
                     </label>
                     <input
                       type="date"
                       value={projectFormData.startDate || ''}
                       onChange={(e) => setProjectFormData({ ...projectFormData, startDate: e.target.value })}
                       className="w-full bg-white dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 rounded-xl px-3 py-2 font-bold text-neutral-800 dark:text-white outline-none focus:border-[#98001b]"
-                      required
                     />
                   </div>
                 </div>
+
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                  <div>
-                    <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
-                      Duration (Months / ) *
-                    </label>
-                    <input
-                      type="number"
-                      min="1"
-                      max="100"
-                      value={projectFormData.durationMonths || ''}
-                      onChange={(e) => setProjectFormData({ ...projectFormData, durationMonths: Number(e.target.value) })}
-                      placeholder="e.g. 36"
-                      className="w-full bg-white dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 rounded-xl px-3 py-2 font-bold text-neutral-800 dark:text-white outline-none focus:border-[#98001b]"
-                      required
-                    />
-                  </div>
+                  {projectFormData.projectType !== 'one-time' ? (
+                    <div>
+                      <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
+                        Duration (Months / مہینے) *
+                      </label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="100"
+                        value={projectFormData.durationMonths || ''}
+                        onChange={(e) => setProjectFormData({ ...projectFormData, durationMonths: Number(e.target.value) })}
+                        placeholder="e.g. 36"
+                        className="w-full bg-white dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 rounded-xl px-3 py-2 font-bold text-neutral-800 dark:text-white outline-none focus:border-[#98001b]"
+                        required
+                      />
+                    </div>
+                  ) : (
+                    <div>
+                      <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
+                        Duration Policy
+                      </label>
+                      <div className="w-full bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 rounded-xl px-3 py-2 text-xs font-bold text-neutral-600 dark:text-neutral-300">
+                        One-Time (No Monthly Duration)
+                      </div>
+                    </div>
+                  )}
+
                   <div>
                     <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
                       Status Badge
                     </label>
                     <select
-                      value={projectFormData.statusBadge || 'Booking Open'}
+                      value={projectFormData.statusBadge || 'OPEN'}
                       onChange={(e) => setProjectFormData({ ...projectFormData, statusBadge: e.target.value })}
                       className="w-full bg-white dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 rounded-xl px-3 py-2 font-semibold text-neutral-800 dark:text-white outline-none focus:border-[#98001b]"
                     >
-                      <option value="Booking Open">Booking Open</option>
-                      <option value="Few Left">Few Left</option>
-                      <option value="Limited Seats">Limited Seats</option>
-                      <option value="Closing Soon">Closing Soon</option>
-                      <option value="Closed">Closed</option>
+                      <option value="OPEN">OPEN / بکنگ جاری ہے</option>
+                      <option value="FEW LEFT">FEW LEFT / چند سیٹیں باقی</option>
+                      <option value="LIMITED SEATS">LIMITED SEATS / محدود نشستیں</option>
+                      <option value="CLOSING SOON">CLOSING SOON / جلد بند ہونے والی ہے</option>
+                      <option value="CLOSED">CLOSED / بند</option>
                     </select>
                   </div>
                   <div>
@@ -1543,7 +1711,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       type="number"
                       value={projectFormData.totalMembers || ''}
                       onChange={(e) => setProjectFormData({ ...projectFormData, totalMembers: Number(e.target.value) })}
-                      placeholder="e.g. 450"
+                      placeholder="e.g. 200"
                       className="w-full bg-white dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 rounded-xl px-3 py-2 font-bold text-neutral-800 dark:text-white outline-none focus:border-[#98001b]"
                     />
                   </div>
@@ -1554,33 +1722,55 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <div className="bg-[#f7faf9] dark:bg-neutral-800/60 p-3.5 rounded-2xl border border-[#e0e3e2] dark:border-neutral-700 space-y-3">
                 <span className="font-['Montserrat'] font-bold text-[11px] uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
                   <DollarSign className="w-3.5 h-3.5" />
-                  2. Pricing
+                  2. Pricing & Payments
                 </span>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
-                      Monthly Kist (PKR)
-                    </label>
-                    <input
-                      type="number"
-                      value={projectFormData.monthlyKist || ''}
-                      onChange={(e) => setProjectFormData({ ...projectFormData, monthlyKist: Number(e.target.value) })}
-                      placeholder="5000"
-                      className="w-full bg-white dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 rounded-xl px-3 py-2 font-bold text-emerald-600 dark:text-emerald-400 outline-none focus:border-[#98001b]"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
-                      Token Price (PKR)
-                    </label>
-                    <input
-                      type="number"
-                      value={projectFormData.tokenPrice || ''}
-                      onChange={(e) => setProjectFormData({ ...projectFormData, tokenPrice: Number(e.target.value) })}
-                      placeholder="5000"
-                      className="w-full bg-white dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 rounded-xl px-3 py-2 font-bold text-[#98001b] dark:text-[#ffb3b0] outline-none focus:border-[#98001b]"
-                    />
-                  </div>
+                  {projectFormData.projectType !== 'one-time' ? (
+                    <>
+                      <div>
+                        <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
+                          Monthly Kist (PKR / ماہانہ قسط) *
+                        </label>
+                        <input
+                          type="number"
+                          value={projectFormData.monthlyKist || ''}
+                          onChange={(e) => setProjectFormData({ ...projectFormData, monthlyKist: Number(e.target.value) })}
+                          placeholder="5000"
+                          className="w-full bg-white dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 rounded-xl px-3 py-2 font-bold text-emerald-600 dark:text-emerald-400 outline-none focus:border-[#98001b]"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
+                          Token / Advance Price (PKR)
+                        </label>
+                        <input
+                          type="number"
+                          value={projectFormData.tokenPrice || ''}
+                          onChange={(e) => setProjectFormData({ ...projectFormData, tokenPrice: Number(e.target.value) })}
+                          placeholder="5000"
+                          className="w-full bg-white dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 rounded-xl px-3 py-2 font-bold text-[#98001b] dark:text-[#ffb3b0] outline-none focus:border-[#98001b]"
+                        />
+                      </div>
+                    </>
+                  ) : (
+                    <div className="col-span-1 sm:col-span-2">
+                      <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
+                        One-Time Token Price (PKR / یک مشت ٹوکن فیس) *
+                      </label>
+                      <input
+                        type="number"
+                        value={projectFormData.tokenPrice || ''}
+                        onChange={(e) => setProjectFormData({ ...projectFormData, tokenPrice: Number(e.target.value) })}
+                        placeholder="1000"
+                        className="w-full bg-white dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 rounded-xl px-3 py-2 font-bold text-[#98001b] dark:text-[#ffb3b0] outline-none focus:border-[#98001b]"
+                        required
+                      />
+                      <p className="text-[11px] text-neutral-500 dark:text-neutral-400 mt-1">
+                        اس پروجیکٹ میں ماہانہ قسط نہیں ہے۔ ممبر صرف ایک بار ٹوکن فیس ادا کرے گا اور لکی ڈرا میں شامل ہوگا۔
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -2316,80 +2506,123 @@ export const AdminView: React.FC<AdminViewProps> = ({
               onSubmit={(e) => {
                 e.preventDefault();
                 const paragraphs = termFormData.paragraphsText
-                  .split('\n\n')
+                  .split(/\n+/)
                   .map((p) => p.trim())
                   .filter(Boolean);
 
-                const updatedTerms = [...terms];
+                const finalParagraphs = paragraphs.length > 0 ? paragraphs : [termFormData.paragraphsText.trim()];
+                const updatedTerms = [...(terms || [])];
+                
                 if (editingTermIndex !== null) {
                   updatedTerms[editingTermIndex] = {
-                    number: termFormData.number,
-                    title: termFormData.title,
-                    paragraphs
+                    number: termFormData.number.trim() || `${editingTermIndex + 1}`,
+                    title: termFormData.title.trim(),
+                    paragraphs: finalParagraphs
                   };
                 } else {
                   updatedTerms.push({
-                    number: termFormData.number,
-                    title: termFormData.title,
-                    paragraphs
+                    number: termFormData.number.trim() || `${updatedTerms.length + 1}`,
+                    title: termFormData.title.trim(),
+                    paragraphs: finalParagraphs
                   });
                 }
-                if (onUpdateTerms) onUpdateTerms(updatedTerms);
+                
+                // Re-sequence numbers cleanly
+                const renumbered = updatedTerms.map((t, i) => ({
+                  ...t,
+                  number: String(i + 1)
+                }));
+
+                if (onUpdateTerms) onUpdateTerms(renumbered);
                 setShowTermModal(false);
               }}
-              className="space-y-3 text-xs"
+              className="space-y-3.5 text-xs"
             >
               <div>
                 <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
-                  Clause Number
+                  {currentLang === 'ur' ? 'شق نمبر (Clause Number)' : 'Clause Number'}
                 </label>
                 <input
                   type="text"
                   value={termFormData.number}
                   onChange={(e) => setTermFormData({ ...termFormData, number: e.target.value })}
-                  className="w-full bg-[#f7faf9] dark:bg-neutral-800 border rounded-xl px-3 py-2 font-mono font-bold text-neutral-800 dark:text-white outline-none"
+                  placeholder="1"
+                  className="w-full bg-[#f7faf9] dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl px-3 py-2 font-mono font-bold text-neutral-800 dark:text-white outline-none focus:border-[#98001b]"
                   required
                 />
               </div>
 
               <div>
                 <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
-                  Clause Title
+                  {currentLang === 'ur' ? 'شق کا عنوان (Clause Title)' : 'Clause Title'}
                 </label>
                 <input
                   type="text"
                   value={termFormData.title}
                   onChange={(e) => setTermFormData({ ...termFormData, title: e.target.value })}
-                  className="w-full bg-[#f7faf9] dark:bg-neutral-800 border rounded-xl px-3 py-2 font-urdu font-bold text-neutral-800 dark:text-white outline-none"
+                  placeholder={currentLang === 'ur' ? 'مثال: پاس ورڈ کی حفاظت' : 'e.g. Password Security'}
+                  dir="auto"
+                  className="w-full bg-[#f7faf9] dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl px-3 py-2 font-urdu font-bold text-neutral-800 dark:text-white outline-none focus:border-[#98001b]"
                   required
                 />
               </div>
 
               <div>
                 <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
-                  Paragraphs
+                  {currentLang === 'ur' ? 'تفصیلات / پیراگراف (Paragraphs)' : 'Paragraphs & Details'}
                 </label>
                 <textarea
                   value={termFormData.paragraphsText}
                   onChange={(e) => setTermFormData({ ...termFormData, paragraphsText: e.target.value })}
-                  className="w-full bg-[#f7faf9] dark:bg-neutral-800 border rounded-xl px-3 py-2 font-urdu text-neutral-800 dark:text-white outline-none h-40 resize-none leading-relaxed"
+                  placeholder={currentLang === 'ur' ? 'یہاں شق کی مکمل تفصیل درج کریں...' : 'Enter clause details here...'}
+                  dir="auto"
+                  className="w-full bg-[#f7faf9] dark:bg-neutral-800 border border-neutral-200 dark:border-neutral-700 rounded-xl px-3.5 py-2.5 font-urdu text-neutral-800 dark:text-white outline-none h-44 resize-none leading-relaxed focus:border-[#98001b]"
                   required
                 />
+                <p className="text-[10px] text-neutral-400 mt-1 font-urdu">
+                  {currentLang === 'ur' ? 'نوٹ: ہر نئی لائن ایک الگ نقطہ یا پیراگراف بنے گی۔' : 'Note: Each new line will be formatted as a separate paragraph.'}
+                </p>
               </div>
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-2 pt-2 items-center">
+                {editingTermIndex !== null && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const confirmMsg = currentLang === 'ur'
+                        ? `کیا آپ واقعی اس شق کو ڈیلیٹ کرنا چاہتے ہیں؟`
+                        : `Are you sure you want to delete this clause?`;
+                      if (window.confirm(confirmMsg)) {
+                        const updated = (terms || []).filter((_, i) => i !== editingTermIndex);
+                        const renumbered = updated.map((t, i) => ({
+                          ...t,
+                          number: String(i + 1)
+                        }));
+                        if (onUpdateTerms) onUpdateTerms(renumbered);
+                        setShowTermModal(false);
+                      }
+                    }}
+                    className="px-3.5 py-2.5 bg-red-50 hover:bg-red-100 dark:bg-red-950/40 text-red-600 dark:text-red-400 border border-red-200 dark:border-red-900/50 rounded-xl font-bold cursor-pointer flex items-center gap-1.5 transition-colors text-xs"
+                    title="Delete Clause"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                    <span>{currentLang === 'ur' ? 'ڈیلیٹ کریں' : 'Delete'}</span>
+                  </button>
+                )}
                 <button
                   type="button"
                   onClick={() => setShowTermModal(false)}
-                  className="flex-1 bg-neutral-100 dark:bg-neutral-700 text-neutral-700 dark:text-white py-2.5 rounded-xl font-bold cursor-pointer"
+                  className="flex-1 bg-neutral-100 dark:bg-neutral-700 hover:bg-neutral-200 dark:hover:bg-neutral-600 text-neutral-700 dark:text-white py-2.5 rounded-xl font-bold cursor-pointer transition-colors text-xs"
                 >
-                  Cancel
+                  {currentLang === 'ur' ? 'منسوخ' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
-                  className="flex-1 bg-[#98001b] hover:bg-[#be1e2d] text-white py-2.5 rounded-xl font-bold cursor-pointer shadow-md"
+                  className="flex-1 bg-[#98001b] hover:bg-[#be1e2d] text-white py-2.5 rounded-xl font-bold cursor-pointer shadow-md transition-colors text-xs"
                 >
-                  Save Clause
+                  {editingTermIndex !== null
+                    ? (currentLang === 'ur' ? 'تبدیلیاں محفوظ کریں' : 'Save Changes')
+                    : (currentLang === 'ur' ? 'نئی شق شامل کریں' : 'Add Clause')}
                 </button>
               </div>
             </form>

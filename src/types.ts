@@ -5,6 +5,7 @@ export interface VehicleProject {
   title: string;
   subtitle: string;
   category?: 'committee' | 'luckydraw' | string;
+  projectType?: 'monthly' | 'one-time';
   vehicleType?: 'car' | 'bike' | 'ev' | string;
   durationMonths: number;
   monthlyKist?: number;
@@ -45,7 +46,7 @@ export interface UserActiveProject {
   completedUnits: number;
   totalUnits: number;
   ticketNumber: string;
-  status: 'ACTIVE' | 'WON' | 'COMPLETED';
+  status: 'ACTIVE' | 'WON' | 'COMPLETED' | 'PENDING';
 }
 
 export type PaymentStatus = 'PAID' | 'UNDER_REVIEW' | 'PENDING' | 'REJECTED';
@@ -53,6 +54,7 @@ export type PaymentStatus = 'PAID' | 'UNDER_REVIEW' | 'PENDING' | 'REJECTED';
 export interface PaymentRecord {
   id: string;
   userId?: string;
+  projectId?: string;
   userToken?: string;
   userName?: string;
   projectName: string;
@@ -104,6 +106,8 @@ export interface UserProfile {
   phoneNumber?: string;
   phone_number?: string;
   cnic: string;
+  fatherName?: string;
+  city?: string;
   address?: string;
   avatarUrl: string;
   isLoggedIn?: boolean;

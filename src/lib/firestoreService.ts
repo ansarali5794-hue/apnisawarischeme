@@ -326,12 +326,23 @@ export function subscribeToTerms(onUpdate: (terms: TermSection[]) => void) {
 
 export async function saveAllTermsToFirestore(terms: TermSection[]): Promise<void> {
   try {
+    const existingSnap = await getDocs(collection(db, 'terms'));
+    const newDocIds = new Set<string>();
+
     // Save each term clause
     for (let i = 0; i < terms.length; i++) {
       const term = terms[i];
       const docId = `term-${String(i + 1).padStart(2, '0')}`;
+      newDocIds.add(docId);
       const cleanData = sanitizeForFirestore({ ...term, id: docId, number: String(i + 1) });
       await setDoc(doc(db, 'terms', docId), cleanData);
+    }
+
+    // Delete any documents that are no longer in the terms list
+    for (const d of existingSnap.docs) {
+      if (!newDocIds.has(d.id)) {
+        await deleteDoc(doc(db, 'terms', d.id));
+      }
     }
   } catch (err) {
     handleFirestoreError(err, OperationType.WRITE, 'terms');

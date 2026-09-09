@@ -14,11 +14,13 @@ import {
   Image as ImageIcon,
   Trash2,
   Eye,
-  FileCheck
+  FileCheck,
+  AlertCircle
 } from 'lucide-react';
-import { PaymentRecord, PaymentStatus, BankAccountDetail, UserProfile, UserActiveProject } from '../types';
+import { PaymentRecord, PaymentStatus, BankAccountDetail, UserProfile, UserActiveProject, VehicleProject } from '../types';
 import { DEFAULT_BANK_ACCOUNTS } from '../data/mockData';
 import { sanitizeText, generatePaymentIdempotencyKey } from '../lib/security';
+import { calculateSchemeArrears } from '../lib/arrearsService';
 
 interface PaymentModalProps {
   isOpen: boolean;
@@ -32,6 +34,7 @@ interface PaymentModalProps {
   currentUser?: UserProfile | null;
   isAdmin?: boolean;
   activeProjects?: UserActiveProject[];
+  allProjects?: VehicleProject[];
 }
 
 export const PaymentModal: React.FC<PaymentModalProps> = ({
@@ -45,7 +48,8 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   bankAccounts = DEFAULT_BANK_ACCOUNTS,
   currentUser,
   isAdmin = false,
-  activeProjects = []
+  activeProjects = [],
+  allProjects = []
 }) => {
   // Requirement 3: Customer payment options ONLY show EasyPaisa, JazzCash, and Bank.
   // "Head Office Cash Counter" is strictly restricted to Admin portal.
@@ -66,29 +70,44 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [tokenNumber, setTokenNumber] = useState(defaultTokenNumber || '');
   const [transactionId, setTransactionId] = useState('');
 
-  // Update selected project when dropdown changes
-  const handleProjectSelect = (selectedTitle: string) => {
-    setProjectName(selectedTitle);
-    
-    // Find the project details
-    const proj = activeProjects.find(p => p.projectTitle === selectedTitle);
-    if (proj) {
-      const nextNum = proj.completedUnits + 1;
-      setInstallmentLabel(`${nextNum}${getOrdinalSuffix(nextNum)} Installment / Token`);
-      setAmount(proj.monthlyKist || proj.tokenAmount || 5000);
-      setTokenNumber(proj.ticketNumber || '');
-    } else {
-      setInstallmentLabel('Installment / Token');
-      setTokenNumber('');
-    }
-  };
-
   const getOrdinalSuffix = (i: number) => {
     const j = i % 10, k = i % 100;
     if (j === 1 && k !== 11) return "st";
     if (j === 2 && k !== 12) return "nd";
     if (j === 3 && k !== 13) return "rd";
     return "th";
+  };
+
+  // Find currently selected active project and arrears
+  const selectedActiveProject = (activeProjects || []).find(
+    p => (tokenNumber && p.ticketNumber === tokenNumber) || p.projectTitle === projectName
+  );
+  const matchingScheme = (allProjects || []).find(
+    op => op.id === selectedActiveProject?.projectId || op.title === selectedActiveProject?.projectTitle || op.title === projectName
+  );
+  const arrearsInfo = calculateSchemeArrears(matchingScheme, selectedActiveProject?.completedUnits || 0);
+
+  // Update selected project/token and auto-calculate past installments
+  const handleProjectSelect = (selectedValue: string) => {
+    const proj = (activeProjects || []).find(p => p.ticketNumber === selectedValue || p.projectTitle === selectedValue);
+    if (proj) {
+      setProjectName(proj.projectTitle);
+      setTokenNumber(proj.ticketNumber || '');
+      const match = (allProjects || []).find(op => op.id === proj.projectId || op.title === proj.projectTitle);
+      const arr = calculateSchemeArrears(match, proj.completedUnits || 0);
+      if (arr.unpaidMonths > 1 && arr.monthsPassed > 0) {
+        setAmount(arr.totalPayablePerToken);
+        setInstallmentLabel(`${arr.unpaidMonths} Months (Including ${arr.overdueMonthsCount} Past Overdue Months)`);
+      } else {
+        const nextNum = (proj.completedUnits || 0) + 1;
+        setInstallmentLabel(`${nextNum}${getOrdinalSuffix(nextNum)} Installment / Token`);
+        setAmount(proj.monthlyKist || proj.tokenAmount || 5000);
+      }
+    } else {
+      setProjectName(selectedValue);
+      setInstallmentLabel('Installment / Token');
+      setTokenNumber('');
+    }
   };
   
   // Real File Upload State
@@ -103,16 +122,27 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
   const [isDone, setIsDone] = useState(false);
   const [copied, setCopied] = useState(false);
 
-  // Sync state if default values change
+  // Sync state if default values change or when modal opens
   React.useEffect(() => {
     if (defaultProject) setProjectName(defaultProject);
-    if (defaultAmount) setAmount(defaultAmount);
-    if (defaultLabel) setInstallmentLabel(defaultLabel);
     if (defaultTokenNumber) setTokenNumber(defaultTokenNumber);
+
+    const proj = (activeProjects || []).find(p => (defaultTokenNumber && p.ticketNumber === defaultTokenNumber) || p.projectTitle === defaultProject);
+    const match = (allProjects || []).find(op => op.id === proj?.projectId || op.title === proj?.projectTitle || op.title === defaultProject);
+    const arr = calculateSchemeArrears(match, proj?.completedUnits || 0);
+
+    if (arr.unpaidMonths > 1 && arr.monthsPassed > 0) {
+      setAmount(arr.totalPayablePerToken);
+      setInstallmentLabel(`${arr.unpaidMonths} Months (Including ${arr.overdueMonthsCount} Past Overdue Months)`);
+    } else {
+      if (defaultAmount) setAmount(defaultAmount);
+      if (defaultLabel) setInstallmentLabel(defaultLabel);
+    }
+
     if (activeAccounts.length > 0 && !activeAccounts.some(a => a.id === selectedAccountId)) {
       setSelectedAccountId(activeAccounts[0].id);
     }
-  }, [defaultProject, defaultAmount, defaultLabel, defaultTokenNumber, activeAccounts]);
+  }, [defaultProject, defaultAmount, defaultLabel, defaultTokenNumber, activeAccounts, isOpen]);
 
   if (!isOpen) return null;
 
@@ -273,29 +303,76 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 </select>
                 
                 {tokenNumber && (
-                  <div className="mt-3">
-                    <label className="block text-xs font-bold text-neutral-500 uppercase mb-1.5">How many months are you paying for?</label>
+                  <div className="mt-3 space-y-2.5">
+                    {/* Arrears Notification Alert */}
+                    {arrearsInfo.unpaidMonths > 1 && arrearsInfo.monthsPassed > 0 && (
+                      <div className="bg-[#fff8f8] border border-[#98001b]/30 p-3 rounded-xl space-y-1">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="w-4 h-4 text-[#98001b] shrink-0 mt-0.5" />
+                          <div>
+                            <p className="text-xs text-[#98001b] font-bold font-urdu leading-relaxed">
+                              یہ اسکیم {arrearsInfo.monthsPassed} ماہ پہلے شروع ہو چکی ہے۔
+                              سسٹم نے پچھلی {arrearsInfo.overdueMonthsCount} اقساط اور موجودہ ماہ کی قسط ملا کر کل {arrearsInfo.unpaidMonths} اقساط (PKR {arrearsInfo.totalPayablePerToken.toLocaleString()}) خودکار طور پر تیار کر دی ہے۔
+                            </p>
+                            <p className="text-[11px] text-[#5b403f] font-mono mt-0.5">
+                              Auto-Generated Total: {arrearsInfo.unpaidMonths} Months &times; PKR {arrearsInfo.baseMonthlyKist.toLocaleString()} = PKR {arrearsInfo.totalPayablePerToken.toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    <label className="block text-xs font-bold text-neutral-500 uppercase">
+                      Select Number of Months / ادا کی جانے والی اقساط
+                    </label>
+
+                    {/* Quick Button for Full Arrears if applicable */}
+                    {arrearsInfo.unpaidMonths > 1 && arrearsInfo.monthsPassed > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAmount(arrearsInfo.totalPayablePerToken);
+                          setInstallmentLabel(`${arrearsInfo.unpaidMonths} Months (Including ${arrearsInfo.overdueMonthsCount} Past Overdue Months)`);
+                        }}
+                        className={`w-full py-2 px-3 rounded-xl text-xs font-bold border-2 transition-all flex items-center justify-between cursor-pointer ${
+                          amount === arrearsInfo.totalPayablePerToken
+                            ? 'bg-[#98001b] text-white border-[#98001b] shadow-xs'
+                            : 'bg-[#fff8f8] text-[#98001b] border-[#98001b]/40 hover:bg-[#ffdad8]/30'
+                        }`}
+                      >
+                        <span className="font-urdu text-right">
+                          ✓ کل تمام واجب الادا اقساط ادا کریں ({arrearsInfo.unpaidMonths} ماہ)
+                        </span>
+                        <span className="font-mono font-bold">
+                          PKR {arrearsInfo.totalPayablePerToken.toLocaleString()}
+                        </span>
+                      </button>
+                    )}
+
                     <div className="flex gap-2 items-center">
-                      {[1, 2, 3, 4, 5].map(num => (
-                        <button
-                          key={num}
-                          type="button"
-                          onClick={() => {
-                            const act = activeProjects.find(p => p.ticketNumber === tokenNumber);
-                            if (act) {
-                              setAmount((act.monthlyKist || 5000) * num);
+                      {[1, 2, 3, 4, 5].map(num => {
+                        const act = activeProjects.find(p => p.ticketNumber === tokenNumber);
+                        const kist = act?.monthlyKist || arrearsInfo.baseMonthlyKist || 5000;
+                        const isCurrentSelected = amount === kist * num;
+
+                        return (
+                          <button
+                            key={num}
+                            type="button"
+                            onClick={() => {
+                              setAmount(kist * num);
                               setInstallmentLabel(`${num} Month${num > 1 ? 's' : ''} Installment`);
-                            }
-                          }}
-                          className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 transition-colors ${
-                            installmentLabel.startsWith(num.toString()) 
-                              ? 'bg-[#98001b] text-white border-[#98001b]' 
-                              : 'bg-white dark:bg-[#2d3131] text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300'
-                          }`}
-                        >
-                          {num} {num === 1 ? 'Mo' : 'Mos'}
-                        </button>
-                      ))}
+                            }}
+                            className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 transition-colors cursor-pointer ${
+                              isCurrentSelected
+                                ? 'bg-[#98001b] text-white border-[#98001b]' 
+                                : 'bg-white dark:bg-[#2d3131] text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300'
+                            }`}
+                          >
+                            {num} {num === 1 ? 'Mo' : 'Mos'}
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}

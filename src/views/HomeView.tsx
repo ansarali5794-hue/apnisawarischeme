@@ -122,82 +122,116 @@ export const HomeView: React.FC<HomeViewProps> = ({
 
       {/* Projects List */}
       <div className="px-4 space-y-4 sm:grid sm:grid-cols-2 sm:gap-4 sm:space-y-0">
-        {filteredProjects.map((project) => {
-          const isFireBadge = project.statusBadge === 'FEW LEFT' || project.statusBadge === 'LIMITED SEATS';
-          return (
-            <div
-              key={project.id}
-              className="bg-white dark:bg-slate-800 rounded-3xl card-shadow overflow-hidden border border-slate-200/90 dark:border-slate-700 flex flex-col hover:border-rose-300 dark:hover:border-rose-700 transition-all duration-200 group"
+        {filteredProjects.length === 0 ? (
+          <div className="col-span-2 bg-white dark:bg-slate-800 p-8 rounded-3xl border border-slate-200 dark:border-slate-700 text-center space-y-3">
+            <p className="text-sm font-bold text-neutral-600 dark:text-neutral-300">
+              {currentLang === 'ur' ? 'اس کیٹیگری میں کوئی گاڑی یا سکیم دستیاب نہیں ہے۔' : 'No schemes available in this category.'}
+            </p>
+            <button
+              onClick={() => setFilter('all')}
+              className="bg-[#8b001f] text-white px-5 py-2 rounded-full text-xs font-bold shadow-md cursor-pointer"
             >
-              {/* Image & Badge Container */}
-              <div className="relative h-48 bg-gradient-to-b from-slate-50 to-slate-100/80 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
-                <img
-                  className="w-full h-full object-contain filter drop-shadow-md group-hover:scale-105 transition-transform duration-300"
-                  src={project.imageUrl}
-                  alt={project.title}
-                  loading="lazy"
-                  decoding="async"
-                />
-                {/* Status Badge */}
-                <div
-                  className={`absolute top-3 left-3 px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 shadow-sm ${
-                    isFireBadge
-                      ? 'bg-[#8b001f] text-white'
-                      : 'gold-gradient text-slate-950 border border-amber-300'
-                  }`}
-                >
-                  {isFireBadge ? <Flame className="w-3 h-3 text-amber-300" /> : <Sparkles className="w-3 h-3 text-slate-950" />}
-                  <span>{project.statusBadge}</span>
-                </div>
-                <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-md text-white text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border border-white/10">
-                  {`${project.durationMonths || 36}M SCHEME`}
-                </div>
-              </div>
-              {/* Content */}
-              <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5">
-                <div>
-                  <h3 className="font-headline font-black text-base sm:text-lg text-slate-900 dark:text-white leading-snug">
-                    {project.title}
-                  </h3>
-                  <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2 font-medium">
-                    {project.description}
-                  </p>
-                  {/* Highlights Bento Grid */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3 p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-700">
-                    {project.installmentAmount && project.installmentAmount > 0 ? (
-                      <div>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-bold">
-                          {t.monthlyInstallment}
-                        </span>
-                        <span className="font-headline font-black text-sm sm:text-base text-[#8b001f] dark:text-rose-400 font-mono">
-                          PKR {project.installmentAmount.toLocaleString()}
-                        </span>
-                      </div>
-                    ) : null}
-                    {project.tokenAmount && project.tokenAmount > 0 ? (
-                      <div>
-                        <span className="text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-bold">
-                          {currentLang === 'sd' ? 'ايڊوانس ٽڪن' : currentLang === 'ur' ? 'ایڈوانس ٹوکن' : 'Advance Token'}
-                        </span>
-                        <span className="font-headline font-black text-sm sm:text-base text-slate-900 dark:text-white font-mono">
-                          PKR {project.tokenAmount.toLocaleString()}
-                        </span>
-                      </div>
-                    ) : null}
+              {currentLang === 'ur' ? 'تمام گاڑیاں دیکھیں' : 'View All Vehicles'}
+            </button>
+          </div>
+        ) : (
+          filteredProjects.map((project) => {
+            const isFireBadge = project.statusBadge === 'FEW LEFT' || project.statusBadge === 'LIMITED SEATS';
+            const isOneTime = project.projectType === 'one-time' || project.category === 'luckydraw';
+            const monthlyAmount = project.monthlyKist || project.installmentAmount || 0;
+            const tokenCost = project.tokenPrice || project.tokenAmount || 0;
+
+            return (
+              <div
+                key={project.id}
+                className="bg-white dark:bg-slate-800 rounded-3xl card-shadow overflow-hidden border border-slate-200/90 dark:border-slate-700 flex flex-col hover:border-rose-300 dark:hover:border-rose-700 transition-all duration-200 group"
+              >
+                {/* Image & Badge Container */}
+                <div className="relative h-48 bg-gradient-to-b from-slate-50 to-slate-100/80 dark:from-slate-800 dark:to-slate-900 flex items-center justify-center p-4">
+                  <img
+                    className="w-full h-full object-contain filter drop-shadow-md group-hover:scale-105 transition-transform duration-300"
+                    src={project.imageUrl || 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&q=80&w=800'}
+                    alt={project.title}
+                    loading="lazy"
+                    decoding="async"
+                    onError={(e) => {
+                      (e.target as HTMLImageElement).src = 'https://images.unsplash.com/photo-1558981403-c5f9899a28bc?auto=format&fit=crop&q=80&w=800';
+                    }}
+                  />
+                  {/* Status Badge */}
+                  <div
+                    className={`absolute top-3 left-3 px-3 py-1 rounded-full text-[10px] font-black flex items-center gap-1 shadow-sm ${
+                      isFireBadge
+                        ? 'bg-[#8b001f] text-white'
+                        : 'gold-gradient text-slate-950 border border-amber-300'
+                    }`}
+                  >
+                    {isFireBadge ? <Flame className="w-3 h-3 text-amber-300" /> : <Sparkles className="w-3 h-3 text-slate-950" />}
+                    <span>{project.statusBadge || 'OPEN'}</span>
+                  </div>
+                  <div className="absolute top-3 right-3 bg-slate-950/80 backdrop-blur-md text-white text-[10px] font-mono font-bold px-2.5 py-0.5 rounded-full border border-white/10">
+                    {isOneTime ? 'ONE-TIME DRAW' : `${project.durationMonths || 36}M COMMITTEE`}
                   </div>
                 </div>
-                {/* Bottom Action Button */}
-                <button
-                  onClick={() => onSelectProject(project)}
-                  className="w-full h-11 bg-[#8b001f] hover:bg-[#a81232] text-white font-black text-xs rounded-full flex items-center justify-center gap-2 cursor-pointer transition-all shadow-maroon active:scale-96"
-                >
-                  <span>{t.viewDetails}</span>
-                  <ArrowRight className="w-4 h-4" />
-                </button>
+                {/* Content */}
+                <div className="p-4 sm:p-5 flex-1 flex flex-col justify-between space-y-3.5">
+                  <div>
+                    <h3 className="font-headline font-black text-base sm:text-lg text-slate-900 dark:text-white leading-snug">
+                      {project.title}
+                    </h3>
+                    <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 line-clamp-2 font-medium">
+                      {project.description}
+                    </p>
+                    {/* Highlights Bento Grid */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3 p-3.5 bg-slate-50 dark:bg-slate-900/60 rounded-2xl border border-slate-200 dark:border-slate-700">
+                      {isOneTime ? (
+                        <div className="col-span-2">
+                          <span className="text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-bold">
+                            {currentLang === 'ur' ? 'ایک بار ٹوکن انویسٹمنٹ' : 'One-Time Token Price'}
+                          </span>
+                          <span className="font-headline font-black text-sm sm:text-base text-[#8b001f] dark:text-rose-400 font-mono">
+                            PKR {tokenCost.toLocaleString()}
+                          </span>
+                        </div>
+                      ) : (
+                        <>
+                          {monthlyAmount > 0 && (
+                            <div>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-bold">
+                                {t.monthlyInstallment}
+                              </span>
+                              <span className="font-headline font-black text-sm sm:text-base text-[#8b001f] dark:text-rose-400 font-mono">
+                                PKR {monthlyAmount.toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                          {tokenCost > 0 && (
+                            <div>
+                              <span className="text-[10px] text-slate-500 dark:text-slate-400 block uppercase font-bold">
+                                {currentLang === 'sd' ? 'ايڊوانس ٽڪن' : currentLang === 'ur' ? 'ایڈوانس ٹوکن' : 'Advance Token'}
+                              </span>
+                              <span className="font-headline font-black text-sm sm:text-base text-slate-900 dark:text-white font-mono">
+                                PKR {tokenCost.toLocaleString()}
+                              </span>
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  </div>
+                  {/* Bottom Action Button */}
+                  <button
+                    onClick={() => onSelectProject(project)}
+                    className="w-full h-11 bg-[#8b001f] hover:bg-[#a81232] text-white font-black text-xs rounded-full flex items-center justify-center gap-2 cursor-pointer transition-all shadow-maroon active:scale-96"
+                  >
+                    <span>{t.viewDetails}</span>
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </div>
   );

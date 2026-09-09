@@ -21,21 +21,29 @@ export const AdminApprovalsSection: React.FC<AdminApprovalsSectionProps> = ({ us
   const pendingEnrollments = (activeProjects || []).filter(p => p.status === 'PENDING');
 
   const handleApproveEnrollment = async (enroll: UserActiveProject) => {
-    if (!onUpdateActiveProject) return;
+    if (!onUpdateActiveProject) {
+      alert('Error: Active projects update handler is not available.');
+      return;
+    }
     try {
-      // Generate token
-      const project = (projects || []).find(p => p.id === enroll.projectId);
-      const tokenResult = await getNextUniqueTokenNumber(enroll.projectId, activeProjects, project?.startDate);
-      onUpdateActiveProject({
+      let finalTicket = enroll.ticketNumber;
+      if (!finalTicket || finalTicket.includes('PENDING')) {
+        const project = (projects || []).find(p => p.id === enroll.projectId);
+        const tokenResult = await getNextUniqueTokenNumber(enroll.projectId, activeProjects, project?.startDate);
+        finalTicket = tokenResult.tokenDisplay;
+      }
+      const updatedEnroll: UserActiveProject = {
         ...enroll,
         status: 'ACTIVE',
-        ticketNumber: tokenResult.tokenDisplay,
-        userToken: tokenResult.tokenDisplay
-      });
-      alert(`Token ${tokenResult.tokenDisplay} assigned successfully.`);
+        ticketNumber: finalTicket,
+        userToken: finalTicket,
+        completedUnits: Math.max(1, enroll.completedUnits || 0)
+      };
+      onUpdateActiveProject(updatedEnroll);
+      alert(`Token ${finalTicket} activated successfully for ${enroll.userName}!`);
     } catch (err) {
       console.error(err);
-      alert('Failed to generate token');
+      alert('Failed to activate token');
     }
   };
 
@@ -47,10 +55,10 @@ export const AdminApprovalsSection: React.FC<AdminApprovalsSectionProps> = ({ us
 
 
   const t = {
-    title: currentLang === 'sd' ? '' : currentLang === 'ur' ? '' : 'Approvals Queue',
-    noPending: currentLang === 'sd' ? '    ' : currentLang === 'ur' ? '    ' : 'No pending requests',
-    pendingRegs: currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'New Registrations',
-    passResets: currentLang === 'sd' ? '    ' : currentLang === 'ur' ? '     ' : 'Password Reset Requests',
+    title: currentLang === 'sd' ? 'منظوري جي قطار (Approvals Queue)' : currentLang === 'ur' ? 'منظوری کی قطار (Approvals Queue)' : 'Approvals Queue',
+    noPending: currentLang === 'sd' ? 'ڪا به نئين درخواست التوا ۾ ناهي (تمام منظور ٿيل آهن)' : currentLang === 'ur' ? 'کوئی نئی درخواست زیر التواء نہیں ہے (تمام درخواستیں منظور ہیں)' : 'No pending requests in queue',
+    pendingRegs: currentLang === 'sd' ? 'نئين رڪنيت جون درخواستون' : currentLang === 'ur' ? 'نئے ممبرز کی رجسٹریشن درخواستیں' : 'New Member Registrations',
+    passResets: currentLang === 'sd' ? 'پاس ورڊ ري سيٽ درخواستون' : currentLang === 'ur' ? 'پاس ورڈ ری سیٹ کی درخواستیں' : 'Password Reset Requests',
   };
 
   const handleApproveRegistration = (user: UserProfile) => {
@@ -149,28 +157,73 @@ export const AdminApprovalsSection: React.FC<AdminApprovalsSectionProps> = ({ us
       
       {pendingEnrollments.length > 0 && (
         <div className="space-y-3 mt-6">
-          <h4 className="font-bold text-[#181c1c] dark:text-white border-b border-neutral-200 dark:border-neutral-700 pb-2">Scheme Enrollments ({pendingEnrollments.length})</h4>
+          <h4 className="font-bold text-[#181c1c] dark:text-white border-b border-neutral-200 dark:border-neutral-700 pb-2">
+            {currentLang === 'ur' ? 'سکیم میں شرکت اور نئے ٹوکن کی منظوری' : currentLang === 'sd' ? 'اسڪيم شرڪت ۽ نئين ٽوڪن منظوري' : 'Scheme Enrollments & Token Approvals'} ({pendingEnrollments.length})
+          </h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {pendingEnrollments.map(enroll => (
-              <div key={enroll.id} className="bg-white dark:bg-[#2d3131] p-4 rounded-2xl border border-purple-200 dark:border-purple-900/50 shadow-sm flex flex-col gap-3">
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h5 className="font-bold text-[#181c1c] dark:text-white">{enroll.userName}</h5>
-                    <p className="text-xs text-neutral-500">{enroll.projectTitle}</p>
-                    <p className="text-xs text-[#98001b] font-bold">Request: Token Assignment</p>
+            {pendingEnrollments.map(enroll => {
+              const member = (users || []).find(
+                u => u.id === enroll.userId || u.uid === enroll.userId || u.memberId === enroll.userId || (u.name && enroll.userName && u.name.trim().toLowerCase() === enroll.userName.trim().toLowerCase())
+              );
+              const matchedProj = (projects || []).find(p => p.id === enroll.projectId || p.title === enroll.projectTitle);
+              const isOneTime = matchedProj?.projectType === 'one-time' || enroll.projectType?.toLowerCase().includes('one-time') || enroll.projectType?.toLowerCase().includes('lucky');
+
+              return (
+                <div key={enroll.id} className="bg-white dark:bg-[#2d3131] p-4 rounded-2xl border border-purple-200 dark:border-purple-900/50 shadow-sm flex flex-col gap-3">
+                  <div className="flex justify-between items-start">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h5 className="font-bold text-[#181c1c] dark:text-white text-base">{enroll.userName}</h5>
+                        {member?.memberId && (
+                          <span className="text-[10px] font-mono font-bold bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 px-2 py-0.5 rounded">
+                            {member.memberId}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs font-bold text-neutral-700 dark:text-neutral-300 mt-1">{enroll.projectTitle}</p>
+                      <div className="flex items-center gap-2 mt-1">
+                        <span className="text-[10px] font-mono font-bold bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-md">
+                          Token: {enroll.ticketNumber || 'Pending'}
+                        </span>
+                        <span className="text-[10px] font-bold text-neutral-500">
+                          {isOneTime ? 'One-Time Lucky Draw' : enroll.projectType}
+                        </span>
+                      </div>
+                    </div>
+                    <span className="bg-purple-100 text-purple-800 text-[10px] px-2 py-1 rounded-full font-bold">Pending Approval</span>
                   </div>
-                  <span className="bg-purple-100 text-purple-800 text-[10px] px-2 py-1 rounded-full font-bold">Pending</span>
+
+                  {/* Customer Contact & Personal Details */}
+                  <div className="bg-neutral-50 dark:bg-neutral-800/60 p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-800 space-y-1.5 text-xs">
+                    <div className="flex justify-between items-center">
+                      <span className="text-neutral-400 text-[10px] uppercase font-bold">Mobile Phone</span>
+                      <a href={`tel:${member?.phone || member?.phoneNumber || ''}`} className="text-blue-600 font-bold hover:underline">
+                        {member?.phone || member?.phoneNumber || 'Not provided'}
+                      </a>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-neutral-400 text-[10px] uppercase font-bold">CNIC Number</span>
+                      <span className="font-mono text-neutral-800 dark:text-neutral-200 font-medium">{member?.cnic || 'Not provided'}</span>
+                    </div>
+                    {member?.address && (
+                      <div className="pt-1 border-t border-neutral-200/50 dark:border-neutral-700/50">
+                        <span className="text-neutral-400 text-[10px] uppercase font-bold block mb-0.5">Address</span>
+                        <p className="text-[11px] text-neutral-600 dark:text-neutral-400">{member.address}</p>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="flex gap-2 mt-1">
+                    <button onClick={() => handleApproveEnrollment(enroll)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1 cursor-pointer transition-colors shadow-sm">
+                      <CheckCircle2 className="w-4 h-4" /> Approve & Activate Token
+                    </button>
+                    <button onClick={() => handleRejectEnrollment(enroll)} className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1 cursor-pointer transition-colors">
+                      <XCircle className="w-4 h-4" /> Reject
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2 mt-2">
-                  <button onClick={() => handleApproveEnrollment(enroll)} className="flex-1 bg-purple-600 hover:bg-purple-700 text-white py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1">
-                    <CheckCircle2 className="w-4 h-4" /> Approve & Assign Token
-                  </button>
-                  <button onClick={() => handleRejectEnrollment(enroll)} className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1">
-                    <XCircle className="w-4 h-4" /> Reject
-                  </button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}

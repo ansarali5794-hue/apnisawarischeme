@@ -231,20 +231,66 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
       {(activeProjects || []).length > 0 && (
         <div className="space-y-3">
           {(activeProjects || []).map((project) => {
-            // Calculate stats for this specific token
-            const projectPayments = (payments || []).filter(p => p.userToken === project.ticketNumber);
+            const projectTitleNorm = (project.projectTitle || '').trim().toLowerCase();
+            const currentTicket = (project.ticketNumber || '').trim().toUpperCase();
+
+            // Match payments strictly by project AND token
+            const projectPayments = (payments || []).filter(p => {
+              // 1. Project match
+              const pTitleNorm = (p.projectName || '').trim().toLowerCase();
+              const isProjectMatch = Boolean(
+                (project.projectId && p.projectId && project.projectId === p.projectId) ||
+                (pTitleNorm && projectTitleNorm && (
+                  pTitleNorm === projectTitleNorm || 
+                  pTitleNorm.includes(projectTitleNorm) || 
+                  projectTitleNorm.includes(pTitleNorm)
+                ))
+              );
+              if (!isProjectMatch) return false;
+
+              // 2. Token match
+              const pTokens = (p.userToken || '').split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+              if (pTokens.length > 0) {
+                return pTokens.includes(currentTicket);
+              }
+              return true;
+            });
+
             const paidPayments = projectPayments.filter(p => p.status === 'PAID');
-            const totalAmountPaidForToken = paidPayments.reduce((sum, p) => sum + p.amount, 0);
             
-            const is36Months = project.totalUnits === 36;
+            // Calculate total amount paid for this specific token
+            const totalAmountPaidForToken = paidPayments.reduce((sum, p) => {
+              const pTokens = (p.userToken || '').split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+              const tokenShare = pTokens.length > 1 ? Math.round(p.amount / pTokens.length) : p.amount;
+              return sum + tokenShare;
+            }, 0);
+
+            // Calculate installments paid for this token
+            let totalInstallmentsPaidCount = 0;
+            paidPayments.forEach(p => {
+              const pTokens = (p.userToken || '').split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
+              const tokenShare = pTokens.length > 1 ? Math.round(p.amount / pTokens.length) : p.amount;
+
+              const matchMonths = (p.installmentLabel || '').match(/Total\s*(\d+)\s*Mos/i) || 
+                                  (p.installmentLabel || '').match(/(\d+)\s*(?:past\s*overdue\s*months|months)/i);
+              if (matchMonths && matchMonths[1]) {
+                totalInstallmentsPaidCount += parseInt(matchMonths[1], 10) || 1;
+              } else if (project.monthlyKist && project.monthlyKist > 0 && tokenShare >= project.monthlyKist) {
+                totalInstallmentsPaidCount += Math.max(1, Math.round(tokenShare / project.monthlyKist));
+              } else {
+                totalInstallmentsPaidCount += 1;
+              }
+            });
+
+            const is36Months = project.totalUnits === 36 || project.projectType?.includes('36');
             const totalExpectedUnits = project.totalUnits || 1;
             
-            // Check if this token is a winner
-            // Usually we'd match on ticketNumber too, but let's match on project title and user context
-            // if winners array is global, we need to match user. We assume the activeProjects are already filtered for the current user.
-            const hasWon = (winners || []).some(w => w.prizeWon.includes(project.projectTitle) && (w.name === project.userName || w.prizeWon.includes(project.ticketNumber)));
+            const hasWon = (winners || []).some(
+              w => (w.prizeWon.includes(project.projectTitle) || (project.ticketNumber && w.prizeWon.includes(project.ticketNumber))) && 
+                   (w.name === project.userName || (project.ticketNumber && w.prizeWon.includes(project.ticketNumber)))
+            );
             
-            let remainingUnits = Math.max(0, totalExpectedUnits - paidPayments.length);
+            let remainingUnits = Math.max(0, totalExpectedUnits - totalInstallmentsPaidCount);
             
             if (hasWon && is36Months) {
               remainingUnits = 0; // Waived off!
@@ -285,7 +331,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
                   </div>
                   <div className="bg-[#f8faf9] dark:bg-neutral-800 p-2.5 rounded-xl border border-[#e2e8f0] dark:border-neutral-700 text-center">
                     <p className="text-[9px] text-neutral-500 uppercase font-bold mb-0.5">Installments Paid</p>
-                    <p className="text-xs font-black text-emerald-600">{paidPayments.length} <span className="text-[9px] text-neutral-500">/ {totalExpectedUnits}</span></p>
+                    <p className="text-xs font-black text-emerald-600">{totalInstallmentsPaidCount} <span className="text-[9px] text-neutral-500">/ {totalExpectedUnits}</span></p>
                   </div>
                   <div className={`p-2.5 rounded-xl border text-center ${remainingUnits === 0 ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200' : 'bg-[#fff5f5] dark:bg-rose-950/20 border-rose-100'}`}>
                     <p className="text-[9px] text-neutral-500 uppercase font-bold mb-0.5">Remaining</p>

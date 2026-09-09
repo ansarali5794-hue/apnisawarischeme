@@ -3,20 +3,29 @@ import { db } from './firebase';
 import { UserActiveProject } from '../types';
 
 export function getPlanTokenPrefix(projectId: string, startDate?: string): string {
-  const year = startDate ? new Date(startDate).getFullYear() : new Date().getFullYear();
-  return `TK-${year}`;
+  if (startDate) {
+    const yearMatch = String(startDate).match(/\b(20\d\d)\b/);
+    if (yearMatch) return `TK-${yearMatch[1]}`;
+    const parsed = new Date(startDate);
+    if (!isNaN(parsed.getFullYear()) && parsed.getFullYear() > 2000) {
+      return `TK-${parsed.getFullYear()}`;
+    }
+  }
+  return `TK-${new Date().getFullYear()}`;
 }
 
-export async function getNextUniqueTokenNumber(
+export async function getNextMultipleUniqueTokens(
   projectId: string,
+  count: number = 1,
   existingActiveProjects: UserActiveProject[] = [],
   startDate?: string
-): Promise<{ tokenNumber: number; tokenDisplay: string }> {
+): Promise<Array<{ tokenNumber: number; tokenDisplay: string }>> {
+  const safeCount = Math.max(1, count);
   const prefix = getPlanTokenPrefix(projectId, startDate);
   const counterDocRef = doc(db, 'token_counters', projectId);
 
   try {
-    const nextVal = await runTransaction(db, async (transaction) => {
+    const allocatedNumbers = await runTransaction(db, async (transaction) => {
       const counterSnap = await transaction.get(counterDocRef);
       let currentVal = 0;
 
@@ -38,24 +47,28 @@ export async function getNextUniqueTokenNumber(
         currentVal = maxExisting;
       }
 
-      const nextNumber = currentVal + 1;
+      const results: number[] = [];
+      for (let i = 1; i <= safeCount; i++) {
+        results.push(currentVal + i);
+      }
+      const newLast = currentVal + safeCount;
+
       transaction.set(counterDocRef, {
         projectId,
         prefix,
-        lastTokenNumber: nextNumber,
+        lastTokenNumber: newLast,
         updatedAt: new Date().toISOString()
       }, { merge: true });
 
-      return nextNumber;
+      return results;
     });
 
-    const padded = String(nextVal).padStart(3, '0');
-    return {
-      tokenNumber: nextVal,
-      tokenDisplay: `${prefix}-${padded}`
-    };
+    return allocatedNumbers.map(n => ({
+      tokenNumber: n,
+      tokenDisplay: `${prefix}-${String(n).padStart(3, '0')}`
+    }));
   } catch (error) {
-    console.warn('[tokenService] Firestore transaction failed, falling back to client-calculated token:', error);
+    console.warn('[tokenService] Firestore transaction failed for multiple tokens, falling back to local calculation:', error);
     const matchingProjects = existingActiveProjects.filter(p => p.projectId === projectId);
     let maxExisting = 0;
     for (const p of matchingProjects) {
@@ -67,11 +80,23 @@ export async function getNextUniqueTokenNumber(
         }
       }
     }
-    const nextVal = maxExisting + 1;
-    const padded = String(nextVal).padStart(3, '0');
-    return {
-      tokenNumber: nextVal,
-      tokenDisplay: `${prefix}-${padded}`
-    };
+    const results: Array<{ tokenNumber: number; tokenDisplay: string }> = [];
+    for (let i = 1; i <= safeCount; i++) {
+      const num = maxExisting + i;
+      results.push({
+        tokenNumber: num,
+        tokenDisplay: `${prefix}-${String(num).padStart(3, '0')}`
+      });
+    }
+    return results;
   }
+}
+
+export async function getNextUniqueTokenNumber(
+  projectId: string,
+  existingActiveProjects: UserActiveProject[] = [],
+  startDate?: string
+): Promise<{ tokenNumber: number; tokenDisplay: string }> {
+  const tokens = await getNextMultipleUniqueTokens(projectId, 1, existingActiveProjects, startDate);
+  return tokens[0];
 }
