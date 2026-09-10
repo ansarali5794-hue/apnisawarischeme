@@ -475,7 +475,7 @@ export function App() {
       completedUnits: 0, // Initialized to 0 until admin verifies and marks PAID!
       nextDueOrDrawDate: isCommittee ? '15 Nov 2024' : '01 Dec 2024',
       imageUrl: project.imageUrl,
-      status: 'PENDING'
+      status: 'ACTIVE'
     }));
 
     setActiveProjects((prev) => [...newActiveProjectsList, ...prev]);
@@ -1063,6 +1063,7 @@ export function App() {
                 activeTokensCount={effectiveUser.activeTokensCount || 0}
                 onOpenPaymentModal={handleOpenPaymentModal}
                 currentLang={lang}
+                userName={effectiveUser.name}
               />
             )}
 

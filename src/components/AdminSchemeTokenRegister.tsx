@@ -56,7 +56,8 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState<'ALL' | 'BOOKED' | 'VACANT' | 'WINNER' | 'PENDING'>('ALL');
   const [showVacantSlots, setShowVacantSlots] = useState<boolean>(true);
-  const [slotsLimit, setSlotsLimit] = useState<number>(100);
+
+  const [tokenToDelete, setTokenToDelete] = useState<{ id: string; tokenNumber: string; userName: string } | null>(null);
 
   // Modals
   const [selectedTokenForHistory, setSelectedTokenForHistory] = useState<{
@@ -69,12 +70,13 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
 
   const [selectedTokenForPass, setSelectedTokenForPass] = useState<{
     tokenNumber: string;
-    project: VehicleProject;
+    project: VehicleProject | null;
     act?: UserActiveProject;
     user?: UserProfile;
     paidAmount: number;
     paidCount: number;
     status: string;
+    serial?: number;
   } | null>(null);
 
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
@@ -179,7 +181,7 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
 
     // Determine how many slots to display
     const totalSlotsToGenerate = showVacantSlots
-      ? Math.min(schemeCapacity, Math.max(slotsLimit, maxAllottedNumber + 10))
+      ? schemeCapacity
       : maxAllottedNumber;
 
     for (let i = 1; i <= totalSlotsToGenerate; i++) {
@@ -305,7 +307,6 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
   }, [
     showVacantSlots,
     schemeCapacity,
-    slotsLimit,
     maxAllottedNumber,
     schemePrefix,
     tokenMap,
@@ -361,12 +362,13 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
     ]);
 
     const csvContent =
-      'data:text/csv;charset=utf-8,\uFEFF' +
+      '\uFEFF' +
       [headers.join(','), ...csvRows.map((e) => e.join(','))].join('\n');
 
-    const encodedUri = encodeURI(csvContent);
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
-    link.setAttribute('href', encodedUri);
+    link.setAttribute('href', url);
     link.setAttribute(
       'download',
       `Token_Register_${currentProject?.title?.replace(/\s+/g, '_') || 'All_Schemes'}_${new Date().toISOString().slice(0, 10)}.csv`
@@ -374,6 +376,7 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   return (
@@ -573,20 +576,6 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
               />
               <span>{currentLang === 'ur' ? 'خالی سلاٹس (001 تا 1000) دکھائیں' : 'Show Vacant Slots'}</span>
             </label>
-
-            {showVacantSlots && (
-              <select
-                value={slotsLimit}
-                onChange={(e) => setSlotsLimit(Number(e.target.value))}
-                className="bg-[#f8faf9] dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 text-xs font-bold rounded-lg px-2 py-1 text-neutral-700 dark:text-neutral-300"
-              >
-                <option value={50}>50 Slots</option>
-                <option value={100}>100 Slots</option>
-                <option value={250}>250 Slots</option>
-                <option value={500}>500 Slots</option>
-                <option value={1000}>1,000 Slots</option>
-              </select>
-            )}
           </div>
         </div>
       </div>
@@ -843,7 +832,8 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
                                     user: row.user,
                                     paidAmount: row.totalPaid,
                                     paidCount: row.paidUnits,
-                                    status: row.status
+                                    status: row.status,
+                                    serial: row.serial
                                   });
                                 }}
                                 className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/40 text-[#98001b] cursor-pointer"
@@ -857,13 +847,11 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
                             {onDeleteActiveProject && row.act?.id && (
                               <button
                                 onClick={() => {
-                                  if (
-                                    window.confirm(
-                                      `Are you sure you want to release / delete Token ${row.tokenNumber} for ${row.act?.userName}?`
-                                    )
-                                  ) {
-                                    onDeleteActiveProject(row.act.id);
-                                  }
+                                  setTokenToDelete({
+                                    id: row.act!.id,
+                                    tokenNumber: row.tokenNumber,
+                                    userName: row.act?.userName || 'User'
+                                  });
                                 }}
                                 className="p-1.5 rounded-lg bg-red-50 hover:bg-red-100 text-red-600 cursor-pointer"
                                 title="Release Slot"
@@ -992,14 +980,16 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
               <div className="text-left bg-white/70 dark:bg-neutral-800/70 p-3 rounded-xl border border-[#e9c176]/50 space-y-1.5 text-xs">
                 <div className="flex justify-between">
                   <span className="text-neutral-500">Member:</span>
-                  <strong className="text-neutral-800 dark:text-white">
+                  <strong className="text-neutral-800 dark:text-white uppercase">
                     {selectedTokenForPass.act?.userName || selectedTokenForPass.user?.name || 'Valued Member'}
                   </strong>
                 </div>
-                {selectedTokenForPass.user?.memberId && (
+                {selectedTokenForPass.serial && (
                   <div className="flex justify-between">
-                    <span className="text-neutral-500">Member ID:</span>
-                    <strong className="font-mono">{selectedTokenForPass.user.memberId}</strong>
+                    <span className="text-neutral-500">Register No:</span>
+                    <strong className="font-mono text-[#98001b]">
+                      {selectedTokenForPass.serial.toString().padStart(2, '0')}
+                    </strong>
                   </div>
                 )}
                 {selectedTokenForPass.user?.cnic && (
@@ -1041,6 +1031,48 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
                 className="px-4 py-2.5 rounded-xl border border-neutral-300 text-xs font-bold text-neutral-700 dark:text-neutral-300 cursor-pointer"
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: DELETE REGISTRATION CONFIRMATION */}
+      {tokenToDelete && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-[#1e2323] w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-red-200 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            
+            <div className="text-center space-y-1">
+              <h4 className="font-['Montserrat'] font-black text-sm text-[#181c1c] dark:text-white uppercase">
+                Release & Delete Token?
+              </h4>
+              <p className="font-urdu text-xs text-neutral-600 dark:text-neutral-300">
+                Are you sure you want to release <strong>Token {tokenToDelete.tokenNumber}</strong> for <strong>{tokenToDelete.userName}</strong>? This slot will become vacant.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setTokenToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-neutral-300 text-xs font-bold hover:bg-neutral-100 cursor-pointer dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (onDeleteActiveProject) {
+                    onDeleteActiveProject(tokenToDelete.id);
+                  }
+                  setTokenToDelete(null);
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer"
+              >
+                Yes, Delete
               </button>
             </div>
           </div>

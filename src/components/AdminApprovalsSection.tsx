@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { UserProfile, UserActiveProject, VehicleProject } from '../types';
 import { getNextUniqueTokenNumber } from '../lib/tokenService';
-import { CheckCircle2, XCircle, AlertCircle, RefreshCcw } from 'lucide-react';
+import { CheckCircle2, XCircle, AlertCircle, RefreshCcw, Trash2 } from 'lucide-react';
 
 interface AdminApprovalsSectionProps {
   activeProjects?: UserActiveProject[];
@@ -15,44 +15,10 @@ interface AdminApprovalsSectionProps {
 }
 
 export const AdminApprovalsSection: React.FC<AdminApprovalsSectionProps> = ({ users, onUpdateUser, onDeleteUser, currentLang, activeProjects = [], projects = [], onUpdateActiveProject, onDeleteActiveProject }) => {
+  const [userToDelete, setUserToDelete] = useState<UserProfile | null>(null);
   
   const pendingUsers = (users || []).filter(u => u.account_status === 'pending');
   const passwordResetUsers = (users || []).filter(u => u.resetPasswordRequested === true);
-  const pendingEnrollments = (activeProjects || []).filter(p => p.status === 'PENDING');
-
-  const handleApproveEnrollment = async (enroll: UserActiveProject) => {
-    if (!onUpdateActiveProject) {
-      alert('Error: Active projects update handler is not available.');
-      return;
-    }
-    try {
-      let finalTicket = enroll.ticketNumber;
-      if (!finalTicket || finalTicket.includes('PENDING')) {
-        const project = (projects || []).find(p => p.id === enroll.projectId);
-        const tokenResult = await getNextUniqueTokenNumber(enroll.projectId, activeProjects, project?.startDate);
-        finalTicket = tokenResult.tokenDisplay;
-      }
-      const updatedEnroll: UserActiveProject = {
-        ...enroll,
-        status: 'ACTIVE',
-        ticketNumber: finalTicket,
-        userToken: finalTicket,
-        completedUnits: Math.max(1, enroll.completedUnits || 0)
-      };
-      onUpdateActiveProject(updatedEnroll);
-      alert(`Token ${finalTicket} activated successfully for ${enroll.userName}!`);
-    } catch (err) {
-      console.error(err);
-      alert('Failed to activate token');
-    }
-  };
-
-  const handleRejectEnrollment = (enroll: UserActiveProject) => {
-    if (confirm('Are you sure you want to reject this enrollment?')) {
-      if (onDeleteActiveProject) onDeleteActiveProject(enroll.id);
-    }
-  };
-
 
   const t = {
     title: currentLang === 'sd' ? 'منظوري جي قطار (Approvals Queue)' : currentLang === 'ur' ? 'منظوری کی قطار (Approvals Queue)' : 'Approvals Queue',
@@ -66,9 +32,7 @@ export const AdminApprovalsSection: React.FC<AdminApprovalsSectionProps> = ({ us
   };
 
   const handleRejectRegistration = (user: UserProfile) => {
-    if (confirm('Are you sure you want to reject and delete this registration request?')) {
-      onDeleteUser(user.id || user.uid || '');
-    }
+    setUserToDelete(user);
   };
 
   const handleApprovePasswordReset = (user: UserProfile) => {
@@ -103,7 +67,7 @@ export const AdminApprovalsSection: React.FC<AdminApprovalsSectionProps> = ({ us
         {t.title}
       </h3>
 
-      {pendingUsers.length === 0 && passwordResetUsers.length === 0 && pendingEnrollments.length === 0 && (
+      {pendingUsers.length === 0 && passwordResetUsers.length === 0 && (
         <div className="bg-white dark:bg-[#2d3131] p-8 rounded-3xl border border-[#e0e3e2] dark:border-neutral-700 text-center text-neutral-500">
           <CheckCircle2 className="w-12 h-12 mx-auto text-emerald-500 mb-3 opacity-50" />
           <p>{t.noPending}</p>
@@ -130,6 +94,18 @@ export const AdminApprovalsSection: React.FC<AdminApprovalsSectionProps> = ({ us
                         <span className="text-neutral-400 text-xs uppercase font-bold">CNIC</span>
                         <span className="font-mono text-[#181c1c] dark:text-white font-medium">{user.cnic}</span>
                       </p>
+                      {user.fatherName && (
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400 flex items-center justify-between">
+                          <span className="text-neutral-400 text-xs uppercase font-bold">Father Name</span>
+                          <span className="text-[#181c1c] dark:text-white font-medium">{user.fatherName}</span>
+                        </p>
+                      )}
+                      {user.city && (
+                        <p className="text-sm text-neutral-600 dark:text-neutral-400 flex items-center justify-between">
+                          <span className="text-neutral-400 text-xs uppercase font-bold">City</span>
+                          <span className="text-[#181c1c] dark:text-white font-medium">{user.city}</span>
+                        </p>
+                      )}
                       <div className="pt-1 border-t border-neutral-100 dark:border-neutral-800">
                         <span className="text-neutral-400 text-[10px] uppercase font-bold block mb-0.5">Full Address</span>
                         <p className="text-xs text-[#181c1c] dark:text-neutral-300 leading-relaxed bg-neutral-50 dark:bg-neutral-800/50 p-2 rounded-lg border border-neutral-100 dark:border-neutral-800">
@@ -154,79 +130,7 @@ export const AdminApprovalsSection: React.FC<AdminApprovalsSectionProps> = ({ us
         </div>
       )}
 
-      
-      {pendingEnrollments.length > 0 && (
-        <div className="space-y-3 mt-6">
-          <h4 className="font-bold text-[#181c1c] dark:text-white border-b border-neutral-200 dark:border-neutral-700 pb-2">
-            {currentLang === 'ur' ? 'سکیم میں شرکت اور نئے ٹوکن کی منظوری' : currentLang === 'sd' ? 'اسڪيم شرڪت ۽ نئين ٽوڪن منظوري' : 'Scheme Enrollments & Token Approvals'} ({pendingEnrollments.length})
-          </h4>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {pendingEnrollments.map(enroll => {
-              const member = (users || []).find(
-                u => u.id === enroll.userId || u.uid === enroll.userId || u.memberId === enroll.userId || (u.name && enroll.userName && u.name.trim().toLowerCase() === enroll.userName.trim().toLowerCase())
-              );
-              const matchedProj = (projects || []).find(p => p.id === enroll.projectId || p.title === enroll.projectTitle);
-              const isOneTime = matchedProj?.projectType === 'one-time' || enroll.projectType?.toLowerCase().includes('one-time') || enroll.projectType?.toLowerCase().includes('lucky');
 
-              return (
-                <div key={enroll.id} className="bg-white dark:bg-[#2d3131] p-4 rounded-2xl border border-purple-200 dark:border-purple-900/50 shadow-sm flex flex-col gap-3">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <h5 className="font-bold text-[#181c1c] dark:text-white text-base">{enroll.userName}</h5>
-                        {member?.memberId && (
-                          <span className="text-[10px] font-mono font-bold bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 px-2 py-0.5 rounded">
-                            {member.memberId}
-                          </span>
-                        )}
-                      </div>
-                      <p className="text-xs font-bold text-neutral-700 dark:text-neutral-300 mt-1">{enroll.projectTitle}</p>
-                      <div className="flex items-center gap-2 mt-1">
-                        <span className="text-[10px] font-mono font-bold bg-purple-100 dark:bg-purple-950/40 text-purple-700 dark:text-purple-300 px-2 py-0.5 rounded-md">
-                          Token: {enroll.ticketNumber || 'Pending'}
-                        </span>
-                        <span className="text-[10px] font-bold text-neutral-500">
-                          {isOneTime ? 'One-Time Lucky Draw' : enroll.projectType}
-                        </span>
-                      </div>
-                    </div>
-                    <span className="bg-purple-100 text-purple-800 text-[10px] px-2 py-1 rounded-full font-bold">Pending Approval</span>
-                  </div>
-
-                  {/* Customer Contact & Personal Details */}
-                  <div className="bg-neutral-50 dark:bg-neutral-800/60 p-2.5 rounded-xl border border-neutral-100 dark:border-neutral-800 space-y-1.5 text-xs">
-                    <div className="flex justify-between items-center">
-                      <span className="text-neutral-400 text-[10px] uppercase font-bold">Mobile Phone</span>
-                      <a href={`tel:${member?.phone || member?.phoneNumber || ''}`} className="text-blue-600 font-bold hover:underline">
-                        {member?.phone || member?.phoneNumber || 'Not provided'}
-                      </a>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <span className="text-neutral-400 text-[10px] uppercase font-bold">CNIC Number</span>
-                      <span className="font-mono text-neutral-800 dark:text-neutral-200 font-medium">{member?.cnic || 'Not provided'}</span>
-                    </div>
-                    {member?.address && (
-                      <div className="pt-1 border-t border-neutral-200/50 dark:border-neutral-700/50">
-                        <span className="text-neutral-400 text-[10px] uppercase font-bold block mb-0.5">Address</span>
-                        <p className="text-[11px] text-neutral-600 dark:text-neutral-400">{member.address}</p>
-                      </div>
-                    )}
-                  </div>
-
-                  <div className="flex gap-2 mt-1">
-                    <button onClick={() => handleApproveEnrollment(enroll)} className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1 cursor-pointer transition-colors shadow-sm">
-                      <CheckCircle2 className="w-4 h-4" /> Approve & Activate Token
-                    </button>
-                    <button onClick={() => handleRejectEnrollment(enroll)} className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300 py-2 rounded-xl text-xs font-bold flex justify-center items-center gap-1 cursor-pointer transition-colors">
-                      <XCircle className="w-4 h-4" /> Reject
-                    </button>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
 
       {passwordResetUsers.length > 0 && (
         <div className="space-y-3 mt-6">
@@ -254,6 +158,46 @@ export const AdminApprovalsSection: React.FC<AdminApprovalsSectionProps> = ({ us
                 </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {userToDelete && (
+        <div className="fixed inset-0 z-[100] bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white dark:bg-[#1e2323] w-full max-w-sm rounded-3xl p-6 shadow-2xl border border-red-200 space-y-4">
+            <div className="w-12 h-12 rounded-2xl bg-red-100 text-red-600 flex items-center justify-center mx-auto">
+              <Trash2 className="w-6 h-6" />
+            </div>
+            
+            <div className="text-center space-y-1">
+              <h4 className="font-['Montserrat'] font-black text-sm text-[#181c1c] dark:text-white uppercase">
+                Reject & Delete User?
+              </h4>
+              <p className="font-urdu text-xs text-neutral-600 dark:text-neutral-300">
+                Are you sure you want to permanently reject and delete <strong>{userToDelete.name}</strong>? This action cannot be undone.
+              </p>
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setUserToDelete(null)}
+                className="flex-1 py-2.5 rounded-xl border border-neutral-300 text-xs font-bold hover:bg-neutral-100 cursor-pointer dark:border-neutral-700 dark:text-neutral-300 dark:hover:bg-neutral-800"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  onDeleteUser(userToDelete.id || userToDelete.uid || '');
+                  setUserToDelete(null);
+                }}
+                className="flex-1 bg-red-600 hover:bg-red-700 text-white py-2.5 rounded-xl text-xs font-bold shadow-md cursor-pointer"
+              >
+                Yes, Reject
+              </button>
+            </div>
           </div>
         </div>
       )}

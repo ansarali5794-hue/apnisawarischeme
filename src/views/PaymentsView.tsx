@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useCallback } from 'react';
-import { Wallet, Award, Receipt, Clock, PlusCircle, Upload, Eye, X, Image as ImageIcon, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Calendar, Ticket } from 'lucide-react';
+import { Wallet, Award, Receipt, Clock, PlusCircle, Upload, Eye, X, Image as ImageIcon, ChevronLeft, ChevronRight, CheckCircle, AlertCircle, Calendar, Ticket, Download } from 'lucide-react';
 import { PaymentRecord, PaymentStatus, UserActiveProject, WinnerRecord } from '../types';
 import { LanguageType, TRANSLATIONS } from '../lib/translations';
+import { OfficialReceiptModal } from '../components/OfficialReceiptModal';
 
 interface PaymentsViewProps {
   payments: PaymentRecord[];
@@ -11,6 +12,7 @@ interface PaymentsViewProps {
   activeTokensCount: number;
   onOpenPaymentModal: (project?: string, amount?: number, label?: string, tokenNumber?: string) => void;
   currentLang?: LanguageType;
+  userName?: string;
 }
 
 // ------------------------------------------------------------------
@@ -21,16 +23,19 @@ interface PaymentCardProps {
   t: typeof TRANSLATIONS['ur'];
   onOpenPaymentModal: (project?: string, amount?: number, label?: string, tokenNumber?: string) => void;
   onViewSlip: (url: string, name: string) => void;
+  onDownloadReceipt: (record: PaymentRecord) => void;
 }
 
 const PaymentCard = React.memo<PaymentCardProps>(({
   record,
   t,
   onOpenPaymentModal,
-  onViewSlip
+  onViewSlip,
+  onDownloadReceipt
 }) => {
   const isPending = record.status === 'PENDING' || record.status === 'UNDER_REVIEW';
   const isRejected = record.status === 'REJECTED';
+  const isPaid = record.status === 'PAID';
 
   const getStatusBadge = (status: PaymentStatus) => {
     switch (status) {
@@ -123,17 +128,27 @@ const PaymentCard = React.memo<PaymentCardProps>(({
         </div>
 
         <div className="flex items-center gap-2">
-          {record.receiptUrl && (
+          {isPaid ? (
+            <button
+              type="button"
+              onClick={() => onDownloadReceipt(record)}
+              className="px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-[10.5px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+              title="Official Receipt"
+            >
+              <Download className="w-3 h-3 text-emerald-600" />
+              <span>Receipt</span>
+            </button>
+          ) : record.receiptUrl ? (
             <button
               type="button"
               onClick={() => onViewSlip(record.receiptUrl!, record.receiptFileName || `Receipt-${record.transactionRef}`)}
-              className="px-2.5 py-1 rounded-full bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/40 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-[10.5px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
+              className="px-2.5 py-1 rounded-full bg-[#f8faf9] hover:bg-neutral-100 dark:bg-neutral-800 border border-neutral-300 dark:border-neutral-700 text-neutral-700 dark:text-neutral-300 text-[10.5px] font-bold flex items-center gap-1 cursor-pointer transition-colors"
               title={t.viewSlip}
             >
-              <Eye className="w-3 h-3 text-emerald-600" />
+              <Eye className="w-3 h-3 text-neutral-500" />
               <span>{t.viewSlip}</span>
             </button>
-          )}
+          ) : null}
 
           {isPending && (
             <button
@@ -171,12 +186,16 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
   totalPaid,
   activeTokensCount,
   onOpenPaymentModal,
-  currentLang = 'ur'
+  currentLang = 'ur',
+  userName
 }) => {
   const t = TRANSLATIONS[currentLang];
   const [filter, setFilter] = useState<string>('all');
   const [viewingSlipUrl, setViewingSlipUrl] = useState<string | null>(null);
   const [viewingSlipName, setViewingSlipName] = useState<string>('');
+  
+  // Official Receipt Modal State
+  const [receiptModalRecord, setReceiptModalRecord] = useState<PaymentRecord | null>(null);
 
   // Pagination State
   const [currentPage, setCurrentPage] = useState<number>(1);
@@ -204,173 +223,26 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
     setViewingSlipName(name);
   }, []);
 
+  const handleDownloadReceipt = useCallback((record: PaymentRecord) => {
+    setReceiptModalRecord(record);
+  }, []);
+
   return (
     <div className="space-y-5 px-4 py-5 animate-in fade-in duration-300 pb-10">
       {/* Header Section */}
-      <div className="flex justify-between items-center">
+      <div className="flex justify-between items-center border-b border-[#f1e2e1] dark:border-neutral-700 pb-4">
         <div>
-          <h1 className="font-headline font-black text-2xl text-[#98001b] dark:text-[#ffb3b0]">
-            {t.paymentsLedger}
+          <h1 className="font-headline font-black text-2xl text-[#98001b] dark:text-[#ffb3b0] flex items-center gap-2">
+            <Receipt className="w-6 h-6" />
+            Passbook & Receipts
           </h1>
-          <p className="text-xs text-[#5b403f] dark:text-neutral-400 font-medium">
-            {t.paymentsSub}
+          <p className="text-xs text-[#5b403f] dark:text-neutral-400 font-medium mt-1">
+            Track all your past payments, verify statuses, and download official receipts.
           </p>
         </div>
-
-        <button
-          id="btn-new-payment"
-          onClick={() => onOpenPaymentModal()}
-          className="gold-gradient text-[#785a1a] font-black text-xs px-4 py-2.5 rounded-full shadow-gold hover:opacity-95 flex items-center gap-1.5 cursor-pointer shrink-0 active:scale-95 transition-all touch-target"
-        >
-          <PlusCircle className="w-4 h-4 text-[#98001b]" />
-          <span>{t.payNowBtn}</span>
-        </button>
       </div>
-
-      {/* Per Token Payment Details (Ledger Cards) */}
-      {(activeProjects || []).length > 0 && (
-        <div className="space-y-3">
-          {(activeProjects || []).map((project) => {
-            const projectTitleNorm = (project.projectTitle || '').trim().toLowerCase();
-            const currentTicket = (project.ticketNumber || '').trim().toUpperCase();
-
-            // Match payments strictly by project AND token
-            const projectPayments = (payments || []).filter(p => {
-              // 1. Project match
-              const pTitleNorm = (p.projectName || '').trim().toLowerCase();
-              const isProjectMatch = Boolean(
-                (project.projectId && p.projectId && project.projectId === p.projectId) ||
-                (pTitleNorm && projectTitleNorm && (
-                  pTitleNorm === projectTitleNorm || 
-                  pTitleNorm.includes(projectTitleNorm) || 
-                  projectTitleNorm.includes(pTitleNorm)
-                ))
-              );
-              if (!isProjectMatch) return false;
-
-              // 2. Token match
-              const pTokens = (p.userToken || '').split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
-              if (pTokens.length > 0) {
-                return pTokens.includes(currentTicket);
-              }
-              return true;
-            });
-
-            const paidPayments = projectPayments.filter(p => p.status === 'PAID');
-            
-            // Calculate total amount paid for this specific token
-            const totalAmountPaidForToken = paidPayments.reduce((sum, p) => {
-              const pTokens = (p.userToken || '').split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
-              const tokenShare = pTokens.length > 1 ? Math.round(p.amount / pTokens.length) : p.amount;
-              return sum + tokenShare;
-            }, 0);
-
-            // Calculate installments paid for this token
-            let totalInstallmentsPaidCount = 0;
-            paidPayments.forEach(p => {
-              const pTokens = (p.userToken || '').split(',').map(t => t.trim().toUpperCase()).filter(Boolean);
-              const tokenShare = pTokens.length > 1 ? Math.round(p.amount / pTokens.length) : p.amount;
-
-              const matchMonths = (p.installmentLabel || '').match(/Total\s*(\d+)\s*Mos/i) || 
-                                  (p.installmentLabel || '').match(/(\d+)\s*(?:past\s*overdue\s*months|months)/i);
-              if (matchMonths && matchMonths[1]) {
-                totalInstallmentsPaidCount += parseInt(matchMonths[1], 10) || 1;
-              } else if (project.monthlyKist && project.monthlyKist > 0 && tokenShare >= project.monthlyKist) {
-                totalInstallmentsPaidCount += Math.max(1, Math.round(tokenShare / project.monthlyKist));
-              } else {
-                totalInstallmentsPaidCount += 1;
-              }
-            });
-
-            const is36Months = project.totalUnits === 36 || project.projectType?.includes('36');
-            const totalExpectedUnits = project.totalUnits || 1;
-            
-            const hasWon = (winners || []).some(
-              w => (w.prizeWon.includes(project.projectTitle) || (project.ticketNumber && w.prizeWon.includes(project.ticketNumber))) && 
-                   (w.name === project.userName || (project.ticketNumber && w.prizeWon.includes(project.ticketNumber)))
-            );
-            
-            let remainingUnits = Math.max(0, totalExpectedUnits - totalInstallmentsPaidCount);
-            
-            if (hasWon && is36Months) {
-              remainingUnits = 0; // Waived off!
-            }
-
-            return (
-              <div key={project.id} className="bg-white dark:bg-[#2d3131] rounded-3xl p-4 border border-[#e0e3e2] dark:border-neutral-700 shadow-sm relative overflow-hidden">
-                {hasWon && is36Months && (
-                  <div className="absolute -right-6 -bottom-6 w-32 h-32 bg-emerald-500/10 rounded-full blur-2xl pointer-events-none"></div>
-                )}
-                
-                <div className="flex justify-between items-start border-b border-[#f1e2e1] dark:border-neutral-700 pb-3 mb-3">
-                  <div>
-                    <h4 className="font-bold text-sm text-[#181c1c] dark:text-white uppercase">
-                      {project.projectTitle}
-                    </h4>
-                    <span className="text-[10px] bg-neutral-100 dark:bg-neutral-800 text-neutral-600 dark:text-neutral-400 px-2 py-0.5 rounded font-mono font-bold mt-1 inline-block">
-                      {project.ticketNumber}
-                    </span>
-                  </div>
-                  {is36Months && hasWon ? (
-                    <div className="bg-emerald-100 dark:bg-emerald-900/30 text-emerald-800 dark:text-emerald-300 px-3 py-1 rounded-full text-[10px] font-bold flex items-center gap-1 border border-emerald-200 dark:border-emerald-800">
-                      <Award className="w-3.5 h-3.5" />
-                      Winner (Installments Waived)
-                    </div>
-                  ) : (
-                    <div className="text-right">
-                      <p className="text-[10px] text-neutral-500 uppercase font-bold">Plan</p>
-                      <p className="text-xs font-black text-[#98001b] dark:text-rose-400">{project.projectType}</p>
-                    </div>
-                  )}
-                </div>
-
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-[#f8faf9] dark:bg-neutral-800 p-2.5 rounded-xl border border-[#e2e8f0] dark:border-neutral-700 text-center">
-                    <p className="text-[9px] text-neutral-500 uppercase font-bold mb-0.5">Total Paid</p>
-                    <p className="text-xs font-black text-[#181c1c] dark:text-white">PKR {totalAmountPaidForToken.toLocaleString()}</p>
-                  </div>
-                  <div className="bg-[#f8faf9] dark:bg-neutral-800 p-2.5 rounded-xl border border-[#e2e8f0] dark:border-neutral-700 text-center">
-                    <p className="text-[9px] text-neutral-500 uppercase font-bold mb-0.5">Installments Paid</p>
-                    <p className="text-xs font-black text-emerald-600">{totalInstallmentsPaidCount} <span className="text-[9px] text-neutral-500">/ {totalExpectedUnits}</span></p>
-                  </div>
-                  <div className={`p-2.5 rounded-xl border text-center ${remainingUnits === 0 ? 'bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200' : 'bg-[#fff5f5] dark:bg-rose-950/20 border-rose-100'}`}>
-                    <p className="text-[9px] text-neutral-500 uppercase font-bold mb-0.5">Remaining</p>
-                    <p className={`text-xs font-black ${remainingUnits === 0 ? 'text-emerald-600' : 'text-[#98001b]'}`}>
-                      {remainingUnits === 0 ? 'NIL (0)' : `${remainingUnits} Left`}
-                    </p>
-                  </div>
-                </div>
-
-                {hasWon && is36Months && (
-                  <div className="mt-3 bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 p-2.5 rounded-xl flex items-start gap-2">
-                    <Award className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-                    <p className="text-[11px] text-emerald-700 dark:text-emerald-400 font-urdu font-bold leading-relaxed">
-                      آپ کا ٹوکن لکی ڈرا میں نکل گیا ہے لہذا آپ کی اگلی تمام اقساط ختم ہو گئی ہیں!
-                    </p>
-                  </div>
-                )}
-
-                {remainingUnits > 0 && !hasWon && (
-                  <button
-                    onClick={() => onOpenPaymentModal(project.projectTitle, project.monthlyKist || project.tokenAmount, undefined, project.ticketNumber)}
-                    className="w-full mt-3 bg-white dark:bg-neutral-800 border border-[#e2e8f0] dark:border-neutral-700 hover:bg-neutral-50 text-xs font-bold py-2 rounded-xl text-[#181c1c] dark:text-white flex items-center justify-center gap-1.5 transition-colors"
-                  >
-                    <PlusCircle className="w-4 h-4 text-[#98001b]" />
-                    {is36Months ? 'Pay Next Installment' : 'Pay Token Amount'}
-                  </button>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
 
       {/* Filter Tabs */}
-      <div className="flex justify-between items-center mt-6">
-        <h3 className="font-bold text-sm text-[#181c1c] dark:text-white uppercase tracking-wider">
-          Payment History
-        </h3>
-      </div>
       <div className="flex gap-2 overflow-x-auto pb-1 hide-scrollbar">
         <button
           onClick={() => {
@@ -409,6 +281,7 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
             t={t}
             onOpenPaymentModal={onOpenPaymentModal}
             onViewSlip={handleViewSlip}
+            onDownloadReceipt={handleDownloadReceipt}
           />
         ))}
 
@@ -479,6 +352,16 @@ export const PaymentsView: React.FC<PaymentsViewProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* Official Receipt Modal */}
+      {receiptModalRecord && (
+        <OfficialReceiptModal
+          isOpen={true}
+          onClose={() => setReceiptModalRecord(null)}
+          record={receiptModalRecord}
+          userName={userName || (activeProjects && activeProjects.length > 0 ? activeProjects[0].userName : 'Customer')}
+        />
       )}
     </div>
   );

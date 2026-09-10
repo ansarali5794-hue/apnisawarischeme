@@ -230,7 +230,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
         projectName: cleanProject,
         installmentLabel: sanitizeText(installmentLabel),
         amount: Math.max(1, Number(amount)),
-        date: new Date().toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
+        date: new Intl.DateTimeFormat('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', hour12: true }).format(new Date()),
         transactionRef: formattedTrx,
         paymentMethod: methodName,
         status: 'UNDER_REVIEW' as PaymentStatus,
@@ -302,77 +302,22 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                   ))}
                 </select>
                 
-                {tokenNumber && (
+                {tokenNumber && arrearsInfo.unpaidMonths > 1 && arrearsInfo.monthsPassed > 0 && (
                   <div className="mt-3 space-y-2.5">
                     {/* Arrears Notification Alert */}
-                    {arrearsInfo.unpaidMonths > 1 && arrearsInfo.monthsPassed > 0 && (
-                      <div className="bg-[#fff8f8] border border-[#98001b]/30 p-3 rounded-xl space-y-1">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className="w-4 h-4 text-[#98001b] shrink-0 mt-0.5" />
-                          <div>
-                            <p className="text-xs text-[#98001b] font-bold font-urdu leading-relaxed">
-                              یہ اسکیم {arrearsInfo.monthsPassed} ماہ پہلے شروع ہو چکی ہے۔
-                              سسٹم نے پچھلی {arrearsInfo.overdueMonthsCount} اقساط اور موجودہ ماہ کی قسط ملا کر کل {arrearsInfo.unpaidMonths} اقساط (PKR {arrearsInfo.totalPayablePerToken.toLocaleString()}) خودکار طور پر تیار کر دی ہے۔
-                            </p>
-                            <p className="text-[11px] text-[#5b403f] font-mono mt-0.5">
-                              Auto-Generated Total: {arrearsInfo.unpaidMonths} Months &times; PKR {arrearsInfo.baseMonthlyKist.toLocaleString()} = PKR {arrearsInfo.totalPayablePerToken.toLocaleString()}
-                            </p>
-                          </div>
+                    <div className="bg-[#fff8f8] border border-[#98001b]/30 p-3 rounded-xl space-y-1">
+                      <div className="flex items-start gap-2">
+                        <AlertCircle className="w-4 h-4 text-[#98001b] shrink-0 mt-0.5" />
+                        <div>
+                          <p className="text-xs text-[#98001b] font-bold font-urdu leading-relaxed">
+                            یہ اسکیم {arrearsInfo.monthsPassed} ماہ پہلے شروع ہو چکی ہے۔
+                            سسٹم نے پچھلی {arrearsInfo.overdueMonthsCount} اقساط اور موجودہ ماہ کی قسط ملا کر کل {arrearsInfo.unpaidMonths} اقساط (PKR {arrearsInfo.totalPayablePerToken.toLocaleString()}) خودکار طور پر تیار کر دی ہے۔
+                          </p>
+                          <p className="text-[11px] text-[#5b403f] font-mono mt-0.5">
+                            Auto-Generated Total: {arrearsInfo.unpaidMonths} Months &times; PKR {arrearsInfo.baseMonthlyKist.toLocaleString()} = PKR {arrearsInfo.totalPayablePerToken.toLocaleString()}
+                          </p>
                         </div>
                       </div>
-                    )}
-
-                    <label className="block text-xs font-bold text-neutral-500 uppercase">
-                      Select Number of Months / ادا کی جانے والی اقساط
-                    </label>
-
-                    {/* Quick Button for Full Arrears if applicable */}
-                    {arrearsInfo.unpaidMonths > 1 && arrearsInfo.monthsPassed > 0 && (
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setAmount(arrearsInfo.totalPayablePerToken);
-                          setInstallmentLabel(`${arrearsInfo.unpaidMonths} Months (Including ${arrearsInfo.overdueMonthsCount} Past Overdue Months)`);
-                        }}
-                        className={`w-full py-2 px-3 rounded-xl text-xs font-bold border-2 transition-all flex items-center justify-between cursor-pointer ${
-                          amount === arrearsInfo.totalPayablePerToken
-                            ? 'bg-[#98001b] text-white border-[#98001b] shadow-xs'
-                            : 'bg-[#fff8f8] text-[#98001b] border-[#98001b]/40 hover:bg-[#ffdad8]/30'
-                        }`}
-                      >
-                        <span className="font-urdu text-right">
-                          ✓ کل تمام واجب الادا اقساط ادا کریں ({arrearsInfo.unpaidMonths} ماہ)
-                        </span>
-                        <span className="font-mono font-bold">
-                          PKR {arrearsInfo.totalPayablePerToken.toLocaleString()}
-                        </span>
-                      </button>
-                    )}
-
-                    <div className="flex gap-2 items-center">
-                      {[1, 2, 3, 4, 5].map(num => {
-                        const act = activeProjects.find(p => p.ticketNumber === tokenNumber);
-                        const kist = act?.monthlyKist || arrearsInfo.baseMonthlyKist || 5000;
-                        const isCurrentSelected = amount === kist * num;
-
-                        return (
-                          <button
-                            key={num}
-                            type="button"
-                            onClick={() => {
-                              setAmount(kist * num);
-                              setInstallmentLabel(`${num} Month${num > 1 ? 's' : ''} Installment`);
-                            }}
-                            className={`flex-1 py-1.5 rounded-lg text-xs font-bold border-2 transition-colors cursor-pointer ${
-                              isCurrentSelected
-                                ? 'bg-[#98001b] text-white border-[#98001b]' 
-                                : 'bg-white dark:bg-[#2d3131] text-neutral-600 dark:text-neutral-400 border-neutral-200 dark:border-neutral-700 hover:border-neutral-300'
-                            }`}
-                          >
-                            {num} {num === 1 ? 'Mo' : 'Mos'}
-                          </button>
-                        );
-                      })}
                     </div>
                   </div>
                 )}
@@ -393,6 +338,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
               <input
                 type="text"
                 value={installmentLabel}
+                readOnly={!isAdmin}
                 onChange={(e) => setInstallmentLabel(e.target.value)}
                 placeholder="e.g. Month 1 / Token Price"
                 className="w-full bg-[#f7faf9] border border-[#e0e3e2] rounded-xl px-3 py-2.5 text-xs font-bold text-[#181c1c] focus:border-[#98001b] outline-none"
@@ -406,6 +352,7 @@ export const PaymentModal: React.FC<PaymentModalProps> = ({
                 <input
                   type="number"
                   value={amount}
+                  readOnly={!isAdmin}
                   onChange={(e) => setAmount(Number(e.target.value))}
                   className="w-full bg-[#f7faf9] border border-[#e0e3e2] rounded-xl px-3 py-2.5 text-sm font-bold text-[#98001b] focus:border-[#98001b] outline-none"
                   required

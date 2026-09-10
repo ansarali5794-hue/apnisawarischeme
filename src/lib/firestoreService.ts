@@ -257,7 +257,7 @@ export function subscribeToBankAccounts(onUpdate: (accounts: BankAccountDetail[]
     ref,
     (snapshot) => {
       if (snapshot.empty) {
-        onUpdate([]);
+        onUpdate(DEFAULT_BANK_ACCOUNTS);
       } else {
         const list: BankAccountDetail[] = [];
         snapshot.forEach((docSnap) => {
@@ -303,7 +303,7 @@ export function subscribeToTerms(onUpdate: (terms: TermSection[]) => void) {
     ref,
     (snapshot) => {
       if (snapshot.empty) {
-        onUpdate([]);
+        onUpdate(EXACT_TERMS_SECTIONS);
       } else {
         const list: TermSection[] = [];
         snapshot.forEach((docSnap) => {
@@ -358,7 +358,7 @@ export function subscribeToWinners(onUpdate: (winners: WinnerRecord[]) => void) 
     ref,
     (snapshot) => {
       if (snapshot.empty) {
-        onUpdate([]);
+        onUpdate(WINNERS_LIST);
       } else {
         const list: WinnerRecord[] = [];
         snapshot.forEach((docSnap) => {
@@ -404,7 +404,7 @@ export function subscribeToProjects(onUpdate: (projects: VehicleProject[]) => vo
     ref,
     (snapshot) => {
       if (snapshot.empty) {
-        onUpdate([]);
+        onUpdate(VEHICLE_PROJECTS);
       } else {
         const list: VehicleProject[] = [];
         snapshot.forEach((docSnap) => {
