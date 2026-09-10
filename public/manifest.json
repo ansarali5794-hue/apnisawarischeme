@@ -1,0 +1,66 @@
+{
+  "id": "/",
+  "name": "Apni Sawari Scheme",
+  "short_name": "Apni Sawari",
+  "description": "Official application for vehicle committee and lucky draw schemes.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": [
+    "window-controls-overlay",
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "portrait-primary",
+  "theme_color": "#8b001f",
+  "background_color": "#f8fafc",
+  "dir": "auto",
+  "lang": "ur",
+  "categories": [
+    "business",
+    "finance",
+    "utilities"
+  ],
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshots/mobile-screen.png",
+      "sizes": "1080x1920",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Apni Sawari Mobile Schemes"
+    },
+    {
+      "src": "/screenshots/desktop-screen.png",
+      "sizes": "1920x1080",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "Apni Sawari Desktop Portal"
+    }
+  ]
+}

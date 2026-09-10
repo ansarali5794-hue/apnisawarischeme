@@ -140,4 +140,9 @@ export interface TermSection {
   number: string;
   title: string;
   paragraphs: string[];
+  translations?: {
+    en?: { title: string; paragraphs: string[] };
+    ur?: { title: string; paragraphs: string[] };
+    sd?: { title: string; paragraphs: string[] };
+  };
 }

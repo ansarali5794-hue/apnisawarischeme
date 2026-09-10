@@ -48,6 +48,32 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Explicitly serve static files from public/ (PWA manifest, service worker, icons, screenshots)
+  const publicPath = path.join(process.cwd(), "public");
+  app.use(express.static(publicPath, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith("manifest.json")) {
+        res.setHeader("Content-Type", "application/manifest+json; charset=utf-8");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      } else if (filePath.endsWith("sw.js")) {
+        res.setHeader("Content-Type", "application/javascript; charset=utf-8");
+        res.setHeader("Service-Worker-Allowed", "/");
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      }
+    }
+  }));
+
+  // CORS middleware for mobile apps (Capacitor/WebView) and remote origins
+  app.use((req, res, next) => {
+    res.header("Access-Control-Allow-Origin", "*");
+    res.header("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
+    res.header("Access-Control-Allow-Headers", "Origin, X-Requested-With, Content-Type, Accept, Authorization");
+    if (req.method === "OPTIONS") {
+      return res.sendStatus(200);
+    }
+    next();
+  });
+
   // Health check endpoint
   app.get("/api/health", (_req, res) => {
     res.json({ status: "ok" });

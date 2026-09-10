@@ -81,12 +81,25 @@ export function generatePaymentIdempotencyKey(
   return `pay_${cleanUser}_${cleanProj}_${amount}_${Date.now()}`;
 }
 
+// Helper to resolve API URLs correctly across Web, PWA, and Capacitor Android APK
+export function getApiUrl(endpoint: string): string {
+  if (typeof window !== 'undefined') {
+    const origin = window.location.origin;
+    // When running inside Capacitor APK (capacitor://localhost or http://localhost on mobile), route to the hosted backend
+    if (origin && (origin.startsWith('capacitor:') || origin.startsWith('file:') || origin.includes('localhost:'))) {
+      const remoteHost = 'https://ais-pre-v24ynvc7rw6wua7zkvzaz7-617095961836.asia-southeast1.run.app';
+      return `${remoteHost}${endpoint}`;
+    }
+  }
+  return endpoint;
+}
+
 // Strict server-side verification for privileged Admin authorization
 export async function verifyAdminPinWithServer(
   enteredPin: string
 ): Promise<{ success: boolean; adminToken?: string; expiresIn?: number; message?: string; retryAfterSeconds?: number }> {
   try {
-    const res = await fetch('/api/admin/verify-pin', {
+    const res = await fetch(getApiUrl('/api/admin/verify-pin'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ pin: sanitizeText(enteredPin) })
@@ -116,12 +129,12 @@ export async function verifyAdminPinWithServer(
 // Server-side session verification
 export async function validateAdminSessionWithServer(
   adminToken: string
-): Promise<{ valid: boolean; message?: string }> {
+): Promise<{ valid: boolean; message?: string; networkOffline?: boolean }> {
   if (!adminToken || typeof adminToken !== 'string') {
     return { valid: false, message: 'No token' };
   }
   try {
-    const res = await fetch('/api/admin/validate-session', {
+    const res = await fetch(getApiUrl('/api/admin/validate-session'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -129,10 +142,14 @@ export async function validateAdminSessionWithServer(
       },
       body: JSON.stringify({ adminToken })
     });
+    if (res.status === 401 || res.status === 403) {
+      return { valid: false, message: 'Session expired' };
+    }
     const data = await res.json().catch(() => ({}));
     return { valid: Boolean(res.ok && data.valid) };
   } catch {
-    return { valid: false, message: 'Server unreachable' };
+    // Do not log out admin on momentary mobile cellular signal drop or offline state
+    return { valid: true, networkOffline: true, message: 'Network offline / Server unreachable' };
   }
 }
 
@@ -140,7 +157,7 @@ export async function validateAdminSessionWithServer(
 export async function logoutAdminWithServer(adminToken?: string): Promise<void> {
   if (!adminToken) return;
   try {
-    await fetch('/api/admin/logout', {
+    await fetch(getApiUrl('/api/admin/logout'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -160,7 +177,7 @@ export async function changeAdminPinWithServer(
   currentPin?: string
 ): Promise<{ success: boolean; message?: string }> {
   try {
-    const res = await fetch('/api/admin/change-pin', {
+    const res = await fetch(getApiUrl('/api/admin/change-pin'), {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',

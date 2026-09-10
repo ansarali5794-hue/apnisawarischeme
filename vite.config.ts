@@ -11,17 +11,19 @@ export default defineConfig(() => {
       tailwindcss(),
       VitePWA({
         registerType: 'autoUpdate',
-        includeAssets: ['favicon-32x32.png', 'apple-touch-icon.png', 'icon.svg'],
+        includeAssets: ['favicon-32x32.png', 'apple-touch-icon.png', 'icon.svg', 'screenshots/*.png'],
         manifest: {
           id: '/',
-          name: 'Apni Sawari',
+          name: 'Apni Sawari Scheme',
           short_name: 'Apni Sawari',
           description: 'Official application for vehicle committee and lucky draw schemes.',
           theme_color: '#8b001f',
           background_color: '#f8fafc',
           display: 'standalone',
+          orientation: 'portrait-primary',
           start_url: '/',
           scope: '/',
+          categories: ['business', 'finance', 'utilities'],
           icons: [
             {
               src: '/icon-192.png',
@@ -48,12 +50,28 @@ export default defineConfig(() => {
               purpose: 'maskable',
             },
           ],
+          screenshots: [
+            {
+              src: '/screenshots/mobile-screen.png',
+              sizes: '1080x1920',
+              type: 'image/png',
+              form_factor: 'narrow',
+              label: 'Apni Sawari Mobile Schemes',
+            },
+            {
+              src: '/screenshots/desktop-screen.png',
+              sizes: '1920x1080',
+              type: 'image/png',
+              form_factor: 'wide',
+              label: 'Apni Sawari Desktop Portal',
+            },
+          ],
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
         },
         devOptions: {
-          enabled: false,
+          enabled: true,
           type: 'module',
         },
       }),

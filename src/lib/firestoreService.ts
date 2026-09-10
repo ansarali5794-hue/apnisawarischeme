@@ -271,7 +271,7 @@ export function subscribeToBankAccounts(onUpdate: (accounts: BankAccountDetail[]
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, 'bankAccounts');
-      onUpdate(DEFAULT_BANK_ACCOUNTS);
+      // Do NOT overwrite user settings with mock templates on network glitch
     }
   );
 }
@@ -319,7 +319,7 @@ export function subscribeToTerms(onUpdate: (terms: TermSection[]) => void) {
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, 'terms');
-      onUpdate(EXACT_TERMS_SECTIONS);
+      // Do NOT overwrite user settings with mock templates on network glitch
     }
   );
 }
@@ -372,7 +372,7 @@ export function subscribeToWinners(onUpdate: (winners: WinnerRecord[]) => void) 
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, 'winners');
-      onUpdate(WINNERS_LIST);
+      // Do NOT overwrite user settings with mock templates on network glitch
     }
   );
 }
@@ -418,7 +418,7 @@ export function subscribeToProjects(onUpdate: (projects: VehicleProject[]) => vo
     },
     (err) => {
       handleFirestoreError(err, OperationType.LIST, 'projects');
-      onUpdate(VEHICLE_PROJECTS);
+      // Do NOT overwrite live user projects with mock templates on network glitch
     }
   );
 }

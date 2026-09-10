@@ -2,7 +2,8 @@ import React, { useState, useMemo, useDeferredValue } from 'react';
 import {
   Building2,
   Calendar,
-  Printer,
+  Download,
+  Loader2,
   Search,
   Smartphone,
   FileSpreadsheet,
@@ -11,6 +12,8 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { PaymentRecord, BankAccountDetail, UserProfile, VehicleProject } from '../types';
 
 interface AdminStatementsSectionProps {
@@ -211,9 +214,162 @@ export const AdminStatementsSection: React.FC<AdminStatementsSectionProps> = ({
     return filteredPayments.slice(start, start + pageSize);
   }, [filteredPayments, effectivePage, pageSize]);
 
-  // Print Statement Handler
-  const handlePrintStatement = () => {
-    window.print();
+  // State for generating PDF
+  const [isGeneratingPdf, setIsGeneratingPdf] = useState(false);
+
+  // High quality PDF download handler using jsPDF + autoTable
+  const handleDownloadPDF = async () => {
+    try {
+      setIsGeneratingPdf(true);
+      // Give React time to show loading state
+      await new Promise((resolve) => setTimeout(resolve, 80));
+
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+
+      // Top Header Brand Stripe
+      doc.setFillColor(152, 0, 27); // #98001b
+      doc.rect(0, 0, pageWidth, 24, 'F');
+
+      // Gold Accent Line
+      doc.setFillColor(233, 193, 118); // #e9c176
+      doc.rect(0, 24, pageWidth, 1.5, 'F');
+
+      // Organization Header Text
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.setTextColor(255, 255, 255);
+      doc.text('APNI SAWARI SCHEME', 14, 12);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.setTextColor(255, 220, 225);
+      doc.text('OFFICIAL ACCOUNT STATEMENT & FINANCIAL REPORT', 14, 18);
+
+      // Statement Metadata Block
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(11);
+      doc.setTextColor(24, 28, 28);
+
+      const statementTitle =
+        statementMode === 'specific'
+          ? `Account: ${selectedAccount?.title || 'Selected Account'} (${selectedAccount?.accountNumber || selectedAccount?.branchOrIban || 'N/A'}) - ${selectedAccount?.accountTitle || ''}`
+          : 'Consolidated General Statement (All Bank & Cash Accounts)';
+      doc.text(statementTitle, 14, 33);
+
+      doc.setFont('helvetica', 'normal');
+      doc.setFontSize(8.5);
+      doc.setTextColor(90, 95, 95);
+
+      const periodText =
+        dateFrom || dateTo
+          ? `Date Range: ${dateFrom || 'Start'} to ${dateTo || 'Today'}`
+          : 'Date Range: Lifetime / All Transactions Recorded';
+      doc.text(periodText, 14, 38);
+
+      const generatedOnText = `Generated on: ${new Date().toLocaleDateString('en-GB')} ${new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+      doc.text(generatedOnText, 14, 43);
+
+      // KPI Summary Box
+      doc.setFillColor(248, 250, 249);
+      doc.setDrawColor(224, 227, 226);
+      doc.roundedRect(14, 47, pageWidth - 28, 17, 2, 2, 'FD');
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(7.5);
+      doc.setTextColor(100, 105, 105);
+      doc.text('TOTAL VERIFIED (PAID)', 18, 53);
+      doc.text('UNDER REVIEW / PENDING', 75, 53);
+      doc.text('TRANSACTIONS', 130, 53);
+      doc.text('MEMBERS', 168, 53);
+
+      doc.setFont('helvetica', 'bold');
+      doc.setFontSize(10);
+      doc.setTextColor(16, 149, 106); // Emerald
+      doc.text(`PKR ${totalVerifiedPaid.toLocaleString()}`, 18, 60);
+
+      doc.setTextColor(180, 110, 0); // Amber
+      doc.text(`PKR ${totalUnderReview.toLocaleString()}`, 75, 60);
+
+      doc.setTextColor(24, 28, 28);
+      doc.text(`${filteredPayments.length} Slips`, 130, 60);
+      doc.text(`${uniquePayingMembers} Users`, 168, 60);
+
+      // Prepare Table Data
+      const tableData = filteredPayments.map((p, index) => [
+        String(index + 1),
+        p.date || 'N/A',
+        `${p.userName || 'Member'}\nToken: ${p.userToken || 'N/A'}`,
+        `${p.projectName || 'Scheme'}\n${p.installmentLabel || ''}`,
+        `${p.paymentMethod || 'Head Office'}\nRef: ${p.transactionRef || 'N/A'}`,
+        `PKR ${p.amount.toLocaleString()}`,
+        p.status || 'PAID'
+      ]);
+
+      autoTable(doc, {
+        head: [['#', 'Date', 'Member & Token', 'Scheme / Installment', 'Method & TRX', 'Amount', 'Status']],
+        body: tableData,
+        startY: 68,
+        theme: 'striped',
+        headStyles: {
+          fillColor: [152, 0, 27],
+          textColor: [255, 255, 255],
+          fontSize: 8,
+          fontStyle: 'bold',
+          halign: 'left',
+          cellPadding: 2.5
+        },
+        styles: {
+          fontSize: 7.5,
+          cellPadding: 2,
+          lineColor: [230, 233, 232],
+          lineWidth: 0.1,
+          valign: 'middle'
+        },
+        alternateRowStyles: {
+          fillColor: [250, 252, 251]
+        },
+        columnStyles: {
+          0: { cellWidth: 8, halign: 'center' },
+          1: { cellWidth: 20 },
+          2: { cellWidth: 38 },
+          3: { cellWidth: 40 },
+          4: { cellWidth: 42 },
+          5: { cellWidth: 25, halign: 'right', fontStyle: 'bold' },
+          6: { cellWidth: 17, halign: 'center' }
+        },
+        didDrawPage: () => {
+          // Footer on every page
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7.5);
+          doc.setTextColor(140, 140, 140);
+          const pageStr = `Page ${doc.getNumberOfPages()}`;
+          doc.text('Apni Sawari Scheme Management System - Computer Generated Official Record', 14, pageHeight - 7);
+          doc.text(pageStr, pageWidth - 14 - doc.getTextWidth(pageStr), pageHeight - 7);
+        }
+      });
+
+      // Filename
+      const cleanAcc =
+        statementMode === 'specific'
+          ? (selectedAccount?.title || 'Account').replace(/[^a-zA-Z0-9]/g, '_')
+          : 'General_Statement';
+      const cleanDate = dateFrom ? `${dateFrom}_to_${dateTo || 'today'}` : 'All_Dates';
+      const filename = `ApniSawari_Statement_${cleanAcc}_${cleanDate}.pdf`;
+
+      doc.save(filename);
+    } catch (err) {
+      console.error('Failed to export PDF statement:', err);
+      alert('Could not generate PDF. Please try again.');
+    } finally {
+      setIsGeneratingPdf(false);
+    }
   };
 
   return (
@@ -374,11 +530,22 @@ export const AdminStatementsSection: React.FC<AdminStatementsSectionProps> = ({
 
             <button
               type="button"
-              onClick={handlePrintStatement}
-              className="bg-[#181c1c] text-[#fed488] hover:bg-[#2d3131] px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+              onClick={handleDownloadPDF}
+              disabled={isGeneratingPdf || filteredPayments.length === 0}
+              className="bg-[#98001b] hover:bg-[#800016] text-white disabled:opacity-50 disabled:cursor-not-allowed px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-sm transition-all"
+              title="Download Statement as PDF"
             >
-              <Printer className="w-4 h-4 text-[#fed488]" />
-              <span>Print Statement</span>
+              {isGeneratingPdf ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                  <span>Generating PDF...</span>
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4 text-white" />
+                  <span>Download PDF</span>
+                </>
+              )}
             </button>
           </div>
         </div>

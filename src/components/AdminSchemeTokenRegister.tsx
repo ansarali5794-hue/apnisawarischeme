@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   UserActiveProject,
   UserProfile,
@@ -25,6 +25,7 @@ import {
   Calendar,
   Layers,
   Sparkles,
+  ChevronLeft,
   ChevronRight,
   Filter
 } from 'lucide-react';
@@ -80,6 +81,15 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
   } | null>(null);
 
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  // Pagination State to prevent DOM overload & mobile freezing
+  const [currentPage, setCurrentPage] = useState<number>(1);
+  const [pageSize, setPageSize] = useState<number | 'ALL'>(25);
+
+  // Reset page whenever scheme selection or filters change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [selectedProjectId, statusFilter, searchQuery, showVacantSlots]);
 
   const handleCopy = (text: string) => {
     navigator.clipboard.writeText(text);
@@ -162,7 +172,7 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
     });
   };
 
-  // Build the unified table rows (Booked + Vacant slots up to limit)
+  // Build the unified table rows (Booked + Vacant slots up to limit) with pre-indexed lookups
   const rows = useMemo(() => {
     const list: Array<{
       serial: number;
@@ -178,6 +188,44 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
       initialTrx: string;
       allotmentDate: string;
     }> = [];
+
+    // Pre-index users for instant O(1) lookups
+    const userById = new Map<string, UserProfile>();
+    const userByName = new Map<string, UserProfile>();
+    for (const u of (users || [])) {
+      if (u.id) userById.set(u.id, u);
+      if (u.uid) userById.set(u.uid, u);
+      if (u.memberId) userById.set(u.memberId, u);
+      if (u.name) userByName.set(u.name.trim().toLowerCase(), u);
+    }
+
+    // Pre-index payments by clean token
+    const paymentsByToken = new Map<string, PaymentRecord[]>();
+    for (const p of (payments || [])) {
+      if (p.status !== 'PAID' || !p.userToken) continue;
+      const tokens = p.userToken.split(',').map((t) => t.trim().toUpperCase()).filter(Boolean);
+      for (const t of tokens) {
+        let arr = paymentsByToken.get(t);
+        if (!arr) {
+          arr = [];
+          paymentsByToken.set(t, arr);
+        }
+        arr.push(p);
+      }
+    }
+
+    // Pre-index winners
+    const winnerTokens = new Set<string>();
+    const winnerNames = new Set<string>();
+    for (const w of (winners || [])) {
+      if (w.name) winnerNames.add(w.name.trim().toLowerCase());
+      if (w.prizeWon) {
+        const words = w.prizeWon.split(/\s+/);
+        for (const word of words) {
+          winnerTokens.add(word.trim().toUpperCase());
+        }
+      }
+    }
 
     // Determine how many slots to display
     const totalSlotsToGenerate = showVacantSlots
@@ -213,16 +261,13 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
       let status: 'BOOKED' | 'VACANT' | 'WINNER' | 'PENDING' = 'VACANT';
 
       if (act) {
-        // Match user
-        user = (users || []).find(
-          (u) =>
-            u.id === act?.userId ||
-            u.uid === act?.userId ||
-            u.memberId === act?.userId ||
-            (act?.userName && u.name && u.name.trim().toLowerCase() === act?.userName.trim().toLowerCase())
-        );
+        // Match user in O(1)
+        user = (act.userId ? userById.get(act.userId) : undefined) ||
+               (act.userName ? userByName.get(act.userName.trim().toLowerCase()) : undefined);
 
-        tokenPayments = getPaymentsForToken(act.ticketNumber, act.projectTitle);
+        const cleanToken = act.ticketNumber ? act.ticketNumber.trim().toUpperCase() : '';
+        tokenPayments = cleanToken ? (paymentsByToken.get(cleanToken) || []) : [];
+        
         totalPaid = tokenPayments.reduce((acc, p) => {
           const pTokens = (p.userToken || '').split(',').map((t) => t.trim().toUpperCase()).filter(Boolean);
           const share = pTokens.length > 1 ? Math.round(p.amount / pTokens.length) : p.amount;
@@ -242,11 +287,10 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
           }
         });
 
-        // Check if winner
-        const hasWon = (winners || []).some(
-          (w) =>
-            (w.prizeWon.includes(act?.projectTitle || '') || (act?.ticketNumber && w.prizeWon.includes(act.ticketNumber))) &&
-            (w.name === act?.userName || (act?.ticketNumber && w.prizeWon.includes(act.ticketNumber)))
+        // Check if winner in O(1)
+        const hasWon = Boolean(
+          (cleanToken && winnerTokens.has(cleanToken)) ||
+          (act.userName && winnerNames.has(act.userName.trim().toLowerCase()))
         );
 
         if (hasWon) {
@@ -313,6 +357,7 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
     projectActiveTokens,
     currentProject,
     users,
+    payments,
     winners,
     statusFilter,
     searchQuery
@@ -324,6 +369,16 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
   const totalRevenueCollected = useMemo(() => {
     return rows.reduce((acc, r) => acc + r.totalPaid, 0);
   }, [rows]);
+
+  // Pagination Slice
+  const totalRowsCount = rows.length;
+  const totalPages = pageSize === 'ALL' ? 1 : Math.max(1, Math.ceil(totalRowsCount / Number(pageSize)));
+  const paginatedRows = useMemo(() => {
+    if (pageSize === 'ALL') return rows;
+    const size = Number(pageSize);
+    const start = (currentPage - 1) * size;
+    return rows.slice(start, start + size);
+  }, [rows, currentPage, pageSize]);
 
   // Export CSV
   const handleExportCSV = () => {
@@ -602,14 +657,14 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
               </tr>
             </thead>
             <tbody className="divide-y divide-[#e0e3e2] dark:divide-neutral-700 bg-white dark:bg-[#2d3131]">
-              {rows.length === 0 ? (
+              {paginatedRows.length === 0 ? (
                 <tr>
                   <td colSpan={13} className="p-8 text-center text-xs text-neutral-400">
                     No token records found matching your filters.
                   </td>
                 </tr>
               ) : (
-                rows.map((row) => {
+                paginatedRows.map((row) => {
                   const isBooked = row.status === 'BOOKED' || row.status === 'WINNER' || row.status === 'PENDING';
                   const phoneNum = row.user?.phone || row.user?.phoneNumber || '';
 
@@ -870,6 +925,72 @@ export const AdminSchemeTokenRegister: React.FC<AdminSchemeTokenRegisterProps> =
               )}
             </tbody>
           </table>
+        </div>
+
+        {/* Pagination Bar */}
+        <div className="bg-[#f8faf9] dark:bg-neutral-800/80 border-t border-[#e0e3e2] dark:border-neutral-700 px-4 py-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
+          <div className="text-neutral-500 dark:text-neutral-400 font-mono">
+            {totalRowsCount === 0 ? (
+              '0 tokens'
+            ) : pageSize === 'ALL' ? (
+              `Showing all ${totalRowsCount} tokens`
+            ) : (
+              `Showing ${(currentPage - 1) * Number(pageSize) + 1}–${Math.min(currentPage * Number(pageSize), totalRowsCount)} of ${totalRowsCount} tokens`
+            )}
+          </div>
+
+          <div className="flex flex-wrap items-center gap-3">
+            {/* Rows Per Page Selector */}
+            <div className="flex items-center gap-1.5">
+              <span className="text-[11px] text-neutral-500">Per page:</span>
+              {[25, 50, 100, 'ALL' as const].map((size) => (
+                <button
+                  key={size}
+                  type="button"
+                  onClick={() => {
+                    setPageSize(size);
+                    setCurrentPage(1);
+                  }}
+                  className={`px-2 py-1 rounded-md text-[11px] font-bold border transition-colors cursor-pointer ${
+                    pageSize === size
+                      ? 'bg-[#98001b] text-white border-[#98001b]'
+                      : 'bg-white dark:bg-neutral-700 text-neutral-600 dark:text-neutral-300 border-[#e0e3e2] dark:border-neutral-600 hover:bg-neutral-100 dark:hover:bg-neutral-600'
+                  }`}
+                >
+                  {size}
+                </button>
+              ))}
+            </div>
+
+            {/* Previous & Next Buttons */}
+            {pageSize !== 'ALL' && totalPages > 1 && (
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                  disabled={currentPage <= 1}
+                  className="p-1.5 rounded-lg border border-[#e0e3e2] dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-700 dark:text-neutral-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer hover:bg-neutral-50"
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+
+                <span className="px-2.5 py-1 text-xs font-bold font-mono text-neutral-700 dark:text-neutral-300">
+                  {currentPage} / {totalPages}
+                </span>
+
+                <button
+                  type="button"
+                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={currentPage >= totalPages}
+                  className="p-1.5 rounded-lg border border-[#e0e3e2] dark:border-neutral-600 bg-white dark:bg-neutral-700 text-neutral-700 dark:text-neutral-200 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer hover:bg-neutral-50"
+                  title="Next Page"
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 

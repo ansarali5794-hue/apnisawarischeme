@@ -148,7 +148,14 @@ export function getStoredPayments(): PaymentRecord[] {
 }
 
 export function setStoredPayments(payments: PaymentRecord[]): void {
-  setStorageItem(STORAGE_KEYS.PAYMENTS, payments);
+  // Prune heavy base64 data strings from local cache to prevent mobile localStorage quota overflow
+  const lightPayments = payments.map((p) => {
+    if (p.receiptUrl && p.receiptUrl.startsWith('data:') && p.receiptUrl.length > 50000) {
+      return { ...p, receiptUrl: 'data:cached/receipt_thumbnail' };
+    }
+    return p;
+  });
+  setStorageItem(STORAGE_KEYS.PAYMENTS, lightPayments);
 }
 
 export function getStoredProjects(): VehicleProject[] {

@@ -1,4 +1,4 @@
-import { VehicleProject, UserActiveProject, PaymentRecord, WinnerRecord, UserProfile, BankAccountDetail } from '../types';
+import { VehicleProject, UserActiveProject, PaymentRecord, WinnerRecord, UserProfile, BankAccountDetail, TermSection } from '../types';
 
 export const DEFAULT_BANK_ACCOUNTS: BankAccountDetail[] = [
   {
@@ -51,6 +51,7 @@ export const VEHICLE_PROJECTS: VehicleProject[] = [
     vehicleType: 'bike',
     durationMonths: 36,
     monthlyKist: 5000,
+    tokenPrice: 0,
     totalMembers: 200,
     monthlyDrawPrize: '1 Brand New Honda CD 70 Bike Monthly',
     qurstandaziBenefit: 'Naam Aane Par Agli Tamam Qistain MAAF!',
@@ -187,7 +188,7 @@ export const INITIAL_PAYMENTS: PaymentRecord[] = [];
 export const MOCK_PAYMENT_RECORDS = INITIAL_PAYMENTS;
 export const WINNERS_LIST: WinnerRecord[] = [];
 
-export const EXACT_TERMS_SECTIONS = [
+export const EXACT_TERMS_SECTIONS: TermSection[] = [
   {
     number: '1',
     title: 'پاس ورڈ کی حفاظت',

@@ -2,7 +2,8 @@ import React, { useState } from 'react';
 import { ArrowLeft, ShieldCheck, Check, Sparkles, ScrollText } from 'lucide-react';
 import { EXACT_TERMS_SECTIONS } from '../data/mockData';
 import { RegistrationFormData, TermSection } from '../types';
-import { LanguageType, TRANSLATIONS } from '../lib/translations';
+import { LanguageType, TRANSLATIONS, LANGUAGES } from '../lib/translations';
+import { getLocalizedTerms } from '../lib/termsTranslation';
 
 interface TermsViewProps {
   onBack: () => void;
@@ -22,10 +23,12 @@ export const TermsView: React.FC<TermsViewProps> = ({
   currentLang = 'ur'
 }) => {
   const t = TRANSLATIONS[currentLang];
+  const isRtl = LANGUAGES[currentLang]?.dir === 'rtl';
   const [isChecked, setIsChecked] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
-  const activeTerms = terms && (terms || []).length > 0 ? terms : EXACT_TERMS_SECTIONS;
+  const rawTerms = terms && (terms || []).length > 0 ? terms : EXACT_TERMS_SECTIONS;
+  const activeTerms = getLocalizedTerms(rawTerms, currentLang);
 
   const handleAgreeAndContinue = () => {
     if (!isChecked) return;
@@ -44,7 +47,10 @@ export const TermsView: React.FC<TermsViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen bg-[#f8faf9] dark:bg-[#181c1c] text-[#181c1c] dark:text-white flex flex-col justify-between animate-in fade-in duration-300">
+    <div
+      dir={isRtl ? 'rtl' : 'ltr'}
+      className={`min-h-screen bg-[#f8faf9] dark:bg-[#181c1c] text-[#181c1c] dark:text-white flex flex-col justify-between animate-in fade-in duration-300 ${isRtl ? (currentLang === 'sd' ? 'font-sindhi' : 'font-urdu') : 'font-sans'}`}
+    >
       {/* Sticky Clean Header */}
       <header className="sticky top-0 z-30 bg-[#98001b] text-white shadow-maroon">
         <div className="w-full max-w-[480px] mx-auto px-4 py-3.5 flex items-center justify-between">
@@ -54,7 +60,7 @@ export const TermsView: React.FC<TermsViewProps> = ({
             aria-label="Back"
             className="w-10 h-10 rounded-full bg-white/10 hover:bg-white/20 active:scale-95 flex items-center justify-center transition-all cursor-pointer text-white touch-target"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className={`w-5 h-5 ${isRtl ? 'rotate-180' : ''}`} />
           </button>
 
           <div className="text-center">
@@ -81,13 +87,15 @@ export const TermsView: React.FC<TermsViewProps> = ({
           <div className="w-11 h-11 rounded-2xl gold-gradient flex items-center justify-center text-[#785a1a] shrink-0 font-bold shadow-gold">
             <ScrollText className="w-5 h-5 text-[#98001b]" />
           </div>
-          <div className="flex-1 text-right" dir="rtl">
+          <div className={`flex-1 ${isRtl ? 'text-right' : 'text-left'}`}>
             <p className="font-headline text-sm font-black text-[#fed488]">
-              {t.welcomeBack}! اپنی سواری اسکیم
+              {t.welcomeBack}! {currentLang === 'en' ? 'Apni Sawari Scheme' : currentLang === 'sd' ? 'پنهنجي سواري اسڪيم' : 'اپنی سواری اسکیم'}
             </p>
             <p className="text-xs text-white/90 leading-relaxed mt-0.5 font-medium">
               {currentLang === 'sd'
-                ? 'کاميٽي ۾ شامل ٿيڻ کان اڳ مهرباني ڪري سڀ شرطون غور سان پڙهو.'
+                ? 'ڪاميٽي ۾ شامل ٿيڻ کان اڳ مهرباني ڪري سڀ شرطون غور سان پڙهو.'
+                : currentLang === 'en'
+                ? 'Please review all terms and official policies carefully before proceeding.'
                 : 'اکاؤنٹ بنانے سے قبل براہ کرم درج ذیل تمام شرائط و ضوابط کو غور سے پڑھ کر اتفاق کریں۔'}
             </p>
           </div>
@@ -100,20 +108,18 @@ export const TermsView: React.FC<TermsViewProps> = ({
               key={section.number}
               className="bg-white dark:bg-[#2d3131] rounded-3xl p-4 sm:p-5 border border-[#f1e2e1] dark:border-neutral-700 card-shadow hover:border-[#98001b]/40 transition-colors"
             >
-              {/* Header with Number and Title (RTL) */}
-              <div className="flex items-center justify-between flex-row-reverse border-b border-[#e2e8f0] dark:border-neutral-700 pb-3 mb-3" dir="rtl">
-                <div className="flex items-center gap-2.5">
-                  <span className="w-7 h-7 rounded-full bg-[#98001b] text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0">
-                    {section.number}
-                  </span>
-                  <h2 className="font-headline font-black text-base text-[#98001b] dark:text-[#ffb3b0]">
-                    {section.title}
-                  </h2>
-                </div>
+              {/* Header with Number and Title */}
+              <div className={`flex items-center gap-2.5 border-b border-[#e2e8f0] dark:border-neutral-700 pb-3 mb-3 ${isRtl ? 'flex-row' : ''}`}>
+                <span className="w-7 h-7 rounded-full bg-[#98001b] text-white font-black text-xs flex items-center justify-center shadow-xs shrink-0">
+                  {section.number}
+                </span>
+                <h2 className={`font-headline font-black text-base text-[#98001b] dark:text-[#ffb3b0] flex-1 ${isRtl ? 'text-right' : 'text-left'}`}>
+                  {section.title}
+                </h2>
               </div>
 
-              {/* Paragraphs in Urdu RTL */}
-              <div className="space-y-2 text-right" dir="rtl">
+              {/* Paragraphs */}
+              <div className={`space-y-2 ${isRtl ? 'text-right' : 'text-left'}`}>
                 {(section.paragraphs || []).map((p, idx) => (
                   <p
                     key={idx}
@@ -135,7 +141,6 @@ export const TermsView: React.FC<TermsViewProps> = ({
           <label
             htmlFor="terms-agreement-checkbox"
             className="flex items-start gap-3 p-3.5 bg-white dark:bg-[#2d3131] rounded-2xl border border-[#f1e2e1] dark:border-neutral-700 card-shadow cursor-pointer hover:border-[#98001b] transition-all select-none"
-            dir={currentLang === 'en' ? 'ltr' : 'rtl'}
           >
             <input
               id="terms-agreement-checkbox"
@@ -144,7 +149,7 @@ export const TermsView: React.FC<TermsViewProps> = ({
               onChange={(e) => setIsChecked(e.target.checked)}
               className="mt-1 w-5 h-5 rounded border-2 border-[#8f6f6e] text-[#98001b] focus:ring-[#98001b] cursor-pointer accent-[#98001b] shrink-0"
             />
-            <span className={`text-xs sm:text-sm text-[#181c1c] dark:text-white leading-[1.8] font-medium flex-1 ${currentLang === 'en' ? 'text-left' : 'text-right'}`}>
+            <span className={`text-xs sm:text-sm text-[#181c1c] dark:text-white leading-[1.8] font-medium flex-1 ${isRtl ? 'text-right' : 'text-left'}`}>
               {currentLang === 'en'
                 ? 'I confirm that I have read and agree to all scheme terms and policies.'
                 : currentLang === 'sd'

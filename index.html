@@ -13,6 +13,18 @@
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
     <link rel="icon" type="image/svg+xml" href="/icon.svg" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.json" />
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('/sw.js').then(function(reg) {
+            console.log('ServiceWorker registered with scope: ', reg.scope);
+          }).catch(function(err) {
+            console.log('ServiceWorker registration failed: ', err);
+          });
+        });
+      }
+    </script>
     <title>Apni Sawari Scheme</title>
     <meta name="description" content="APNI SAWARI SCHEME - Official application for vehicle committee and lucky draw schemes." />
     <meta property="og:title" content="Apni Sawari Scheme" />

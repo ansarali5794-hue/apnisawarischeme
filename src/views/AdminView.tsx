@@ -38,7 +38,9 @@ import {
   Camera,
   Layers,
   CheckCircle,
-  Play
+  Play,
+  ChevronRight,
+  Globe
 } from 'lucide-react';
 import {
   UserProfile,
@@ -51,7 +53,8 @@ import {
 } from '../types';
 import { EXACT_TERMS_SECTIONS } from '../data/mockData';
 import { compressImageToDataUrl } from '../lib/imageCompressor';
-import { LanguageType, TRANSLATIONS } from '../lib/translations';
+import { LanguageType, TRANSLATIONS, LANGUAGES } from '../lib/translations';
+import { getLocalizedTerm, generateClauseTranslations } from '../lib/termsTranslation';
 import { AdminCustomersSection } from '../components/AdminCustomersSection';
 import { AdminApprovalsSection } from '../components/AdminApprovalsSection';
 import { AdminStatementsSection } from '../components/AdminStatementsSection';
@@ -227,7 +230,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
       projectType: 'monthly',
       category: 'committee',
       vehicleType: 'bike',
-      tokenPrice: 5000,
+      tokenPrice: 0,
       monthlyKist: 5000,
       durationMonths: 36,
       totalMembers: 200,
@@ -252,8 +255,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
   const handleOpenEditProject = (proj: VehicleProject) => {
     setEditingProject(proj);
     const isOneTime = proj.projectType === 'one-time' || (proj.category === 'luckydraw' && !proj.monthlyKist);
+    const resolvedTokenPrice = proj.tokenPrice !== undefined ? Number(proj.tokenPrice) : (proj.tokenAmount !== undefined ? Number(proj.tokenAmount) : 0);
     setProjectFormData({
       ...proj,
+      tokenPrice: resolvedTokenPrice,
+      tokenAmount: resolvedTokenPrice,
       projectType: isOneTime ? 'one-time' : 'monthly',
       category: isOneTime ? 'luckydraw' : 'committee',
       startDate: proj.startDate || new Date().toISOString().split('T')[0],
@@ -385,8 +391,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
       projectType: isOneTime ? 'one-time' : 'monthly',
       category: isOneTime ? 'luckydraw' : 'committee',
       startDate: projectFormData.startDate || editingProject?.startDate || new Date().toISOString().split('T')[0],
-      tokenPrice: projectFormData.tokenPrice !== undefined ? Number(projectFormData.tokenPrice) : (Number(projectFormData.monthlyKist) || 0),
-      tokenAmount: projectFormData.tokenPrice !== undefined ? Number(projectFormData.tokenPrice) : (Number(projectFormData.monthlyKist) || 0),
+      tokenPrice: Number(projectFormData.tokenPrice) || 0,
+      tokenAmount: Number(projectFormData.tokenPrice) || 0,
       monthlyKist: isOneTime ? 0 : (Number(projectFormData.monthlyKist) || 0),
       installmentAmount: isOneTime ? 0 : (Number(projectFormData.monthlyKist) || 0),
       durationMonths: isOneTime ? 1 : (Number(projectFormData.durationMonths) || 36),
@@ -527,8 +533,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
     setShowAccountModal(false);
   };
 
+  const isRtl = LANGUAGES[currentLang]?.dir === 'rtl';
+
   return (
-    <div className="space-y-4 animate-in fade-in duration-300 pb-16">
+    <div
+      dir={isRtl ? 'rtl' : 'ltr'}
+      className={`space-y-4 animate-in fade-in duration-300 pb-16 ${isRtl ? (currentLang === 'sd' ? 'font-sindhi' : 'font-urdu') : 'font-sans'}`}
+    >
       {/* Top Banner & Control Bar */}
       <div className="bg-[#181c1c] text-white p-4 rounded-3xl border border-[#fed488]/40 shadow-xl flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div className="flex items-center gap-3">
@@ -538,24 +549,44 @@ export const AdminView: React.FC<AdminViewProps> = ({
           <div>
             <div className="flex items-center gap-2">
               <h2 className="font-headline font-black text-base text-white tracking-wide">
-                {currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '  ' : 'MASTER ADMIN PORTAL'}
+                {currentLang === 'sd' ? 'ماسٽر ايڊمن پورٽل' : currentLang === 'ur' ? 'ماسٹر ایڈمن پورٹل' : 'MASTER ADMIN PORTAL'}
               </h2>
               <span className="bg-[#fed488] text-[#261900] font-mono text-[10px] font-extrabold px-2 py-0.5 rounded-full whitespace-nowrap">
-                {currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'FULL ACCESS'}
+                {currentLang === 'sd' ? 'مڪمل اختيار' : currentLang === 'ur' ? 'مکمل رسائی' : 'FULL ACCESS'}
               </span>
             </div>
             <p className="text-xs text-neutral-300 mt-0.5">
               {currentLang === 'sd'
-                ? '          '
+                ? 'اسڪيمن، رڪنن، ادائيگين، اسٽيٽمينٽن ۽ قرعه اندازي جو مڪمل انتظام'
                 : currentLang === 'ur'
-                ? '          '
+                ? 'اسکیموں، ممبرز، ادائیگیوں، اسٹیٹمنٹس اور قرعہ اندازی کا مکمل انتظام'
                 : 'Full management of schemes, customers, payments, statements & draws'}
             </p>
           </div>
         </div>
 
-        {/* Action Buttons */}
-        <div className="flex items-center gap-2 w-full sm:w-auto">
+        {/* Action Buttons & Language Switcher */}
+        <div className="flex items-center gap-2 w-full sm:w-auto flex-wrap justify-end">
+          {/* Language Selector in Admin Header */}
+          {onLangChange && (
+            <div className="flex items-center gap-1 bg-white/10 p-1 rounded-full border border-white/15">
+              {(['ur', 'sd', 'en'] as LanguageType[]).map((l) => (
+                <button
+                  key={l}
+                  type="button"
+                  onClick={() => onLangChange(l)}
+                  className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
+                    currentLang === l
+                      ? 'bg-[#fed488] text-[#261900] shadow-xs font-black'
+                      : 'text-white/80 hover:text-white hover:bg-white/10'
+                  }`}
+                >
+                  {LANGUAGES[l].label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {onPreviewCustomerView && (
             <button
               id="btn-admin-preview-customer"
@@ -563,7 +594,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               className="flex-1 sm:flex-none gold-gradient hover:opacity-95 text-[#785a1a] font-headline font-black text-xs px-4 py-2.5 rounded-full flex items-center justify-center gap-1.5 cursor-pointer shadow-gold border border-[#e9c176] transition-all touch-target"
             >
               <Eye className="w-4 h-4 text-[#98001b]" />
-              <span>{currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '  ' : 'Customer View Preview'}</span>
+              <span>{currentLang === 'sd' ? 'ڪسٽمر ويو پريويو' : currentLang === 'ur' ? 'کسٹمر ویو پریویو' : 'Customer View Preview'}</span>
             </button>
           )}
 
@@ -574,27 +605,35 @@ export const AdminView: React.FC<AdminViewProps> = ({
               className="bg-[#98001b] hover:bg-[#be1e2d] text-white font-headline font-bold text-xs px-4 py-2.5 rounded-full flex items-center justify-center gap-1.5 cursor-pointer shadow-maroon transition-all touch-target"
             >
               <Lock className="w-4 h-4" />
-              <span>{currentLang === 'sd' ? ' /  ' : currentLang === 'ur' ? ' /  ' : 'Lock / Exit'}</span>
+              <span>{currentLang === 'sd' ? 'لاڪ / ٻاهر نڪرو' : currentLang === 'ur' ? 'لاک / لاگ آؤٹ' : 'Lock / Exit'}</span>
             </button>
           )}
         </div>
       </div>
 
-      {/* Admin Navigation Pills - Fixed with shrink-0 and overflow scroll */}
+      {/* Admin Navigation Pills - Main Tabs (Registers, Approvals, Overview) */}
       <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 hide-scrollbar scrollbar-none">
         {[
           { id: 'registers', label: currentLang === 'sd' ? 'اسڪيم ٽوڪن رجسٽر' : currentLang === 'ur' ? 'اسکیم ٹوکن رجسٹر' : 'Scheme Token Register', icon: Layers },
           { id: 'approvals', label: currentLang === 'sd' ? 'منظوري قطار' : currentLang === 'ur' ? 'منظوری قطار' : 'Approvals Queue', icon: ShieldCheck },
-          { id: 'overview', label: currentLang === 'sd' ? 'مجموعي جائزي' : currentLang === 'ur' ? 'مجموعی جائزہ' : 'Overview', icon: TrendingUp },
-          { id: 'projects', label: currentLang === 'sd' ? 'گاڏيون ۽ اسڪيمون' : currentLang === 'ur' ? 'گاڑیاں اور اسکیمیں' : 'Schemes & Cars', icon: Car },
-          { id: 'users', label: currentLang === 'sd' ? 'ڪسٽمر ۽ رڪن' : currentLang === 'ur' ? 'کسٹمرز اور ممبرز' : 'Customers & Members', icon: Users },
-          { id: 'payments', label: currentLang === 'sd' ? 'ادائيگيون ۽ رسيدون' : currentLang === 'ur' ? 'ادائیگی اور رسیدیں' : 'Payments & Slips', icon: CreditCard },
-          { id: 'statements', label: currentLang === 'sd' ? 'کاتي اسٽيٽمينٽ' : currentLang === 'ur' ? 'کھاتہ اسٹیٹمنٹ' : 'Account Statements', icon: FileSpreadsheet },
-          { id: 'winners', label: currentLang === 'sd' ? 'ڪامياب اميدوار' : currentLang === 'ur' ? 'کامیاب امیدوار' : 'Winners', icon: Award },
-          { id: 'accounts', label: currentLang === 'sd' ? 'بينڪ اڪائونٽس' : currentLang === 'ur' ? 'بینک اکاؤنٹس' : 'Bank Accounts', icon: Building2 },
-          { id: 'security', label: currentLang === 'sd' ? 'ايڊمن پن' : currentLang === 'ur' ? 'ایڈمن پن' : 'Admin PIN', icon: Lock },
-          { id: 'terms', label: currentLang === 'sd' ? 'شرطون ۽ ضوابط' : currentLang === 'ur' ? 'شرائط و ضوابط' : 'Terms & Conditions', icon: FileText }
-        ].map((item) => {
+          { id: 'overview', label: currentLang === 'sd' ? 'مجموعي جائزو' : currentLang === 'ur' ? 'مجموعی جائزہ' : 'Overview', icon: TrendingUp },
+          ...(
+            !['registers', 'approvals', 'overview'].includes(activeSection)
+              ? [
+                  [
+                    { id: 'projects', label: currentLang === 'sd' ? 'گاڏيون ۽ اسڪيمون' : currentLang === 'ur' ? 'گاڑیاں اور اسکیمیں' : 'Schemes & Cars', icon: Car },
+                    { id: 'users', label: currentLang === 'sd' ? 'ڪسٽمر ۽ رڪن' : currentLang === 'ur' ? 'کسٹمرز اور ممبرز' : 'Customers & Members', icon: Users },
+                    { id: 'payments', label: currentLang === 'sd' ? 'ادائيگيون ۽ رسيدون' : currentLang === 'ur' ? 'ادائیگی اور رسیدیں' : 'Payments & Slips', icon: CreditCard },
+                    { id: 'statements', label: currentLang === 'sd' ? 'کاتي اسٽيٽمينٽ' : currentLang === 'ur' ? 'کھاتہ اسٹیٹمنٹ' : 'Account Statements', icon: FileSpreadsheet },
+                    { id: 'winners', label: currentLang === 'sd' ? 'ڪامياب اميدوار' : currentLang === 'ur' ? 'کامیاب امیدوار' : 'Winners', icon: Award },
+                    { id: 'accounts', label: currentLang === 'sd' ? 'بينڪ اڪائونٽس' : currentLang === 'ur' ? 'بینک اکاؤنٹس' : 'Bank Accounts', icon: Building2 },
+                    { id: 'security', label: currentLang === 'sd' ? 'ايڊمن پن' : currentLang === 'ur' ? 'ایڈمن پن' : 'Admin PIN', icon: Lock },
+                    { id: 'terms', label: currentLang === 'sd' ? 'شرطون ۽ ضوابط' : currentLang === 'ur' ? 'شرائط و ضوابط' : 'Terms & Conditions', icon: FileText }
+                  ].find((m) => m.id === activeSection)
+                ].filter(Boolean)
+              : []
+          )
+        ].map((item: any) => {
           const Icon = item.icon;
           const isActive = activeSection === item.id;
           return (
@@ -656,49 +695,49 @@ export const AdminView: React.FC<AdminViewProps> = ({
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
             <div className="bg-white dark:bg-[#2d3131] p-4 rounded-3xl border border-[#f1e2e1] dark:border-neutral-700 card-shadow">
               <span className="text-[10px] text-[#5b403f] dark:text-neutral-400 font-bold uppercase block">
-                {currentLang === 'sd' ? '   ' : currentLang === 'ur' ? '   ' : 'Total Verified Paid'}
+                {currentLang === 'sd' ? 'ڪل تصديق ٿيل رقم' : currentLang === 'ur' ? 'کل تصدیق شدہ رقم' : 'Total Verified Paid'}
               </span>
               <p className="font-headline font-black text-lg text-emerald-600 dark:text-emerald-400 mt-1">
                 PKR {totalCollected.toLocaleString()}
               </p>
               <span className="text-[10px] text-neutral-500 font-semibold">
-                {(payments || []).filter((p) => p.status === 'PAID').length} {currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'Successful slips'}
+                {(payments || []).filter((p) => p.status === 'PAID').length} {currentLang === 'sd' ? 'ڪامياب رسيدون' : currentLang === 'ur' ? 'کامیاب رسیدیں' : 'Successful slips'}
               </span>
             </div>
 
             <div className="bg-white dark:bg-[#2d3131] p-4 rounded-3xl border border-[#f1e2e1] dark:border-neutral-700 card-shadow">
               <span className="text-[10px] text-[#5b403f] dark:text-neutral-400 font-bold uppercase block">
-                {currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'Pending Slips'}
+                {currentLang === 'sd' ? 'التوا واريون رسيدون' : currentLang === 'ur' ? 'زیر التواء رسیدیں' : 'Pending Slips'}
               </span>
               <p className="font-headline font-black text-lg text-amber-600 dark:text-amber-400 mt-1">
-                {pendingPayments.length} {currentLang === 'sd' ? '' : currentLang === 'ur' ? '' : 'Requests'}
+                {pendingPayments.length} {currentLang === 'sd' ? 'درخواستون' : currentLang === 'ur' ? 'درخواستیں' : 'Requests'}
               </p>
               <span className="text-[10px] text-neutral-500 font-semibold">
-                {currentLang === 'sd' ? '   ' : currentLang === 'ur' ? '  ' : 'Requires verification'}
+                {currentLang === 'sd' ? 'تصديق جي ضرورت آهي' : currentLang === 'ur' ? 'تصدیق درکار ہے' : 'Requires verification'}
               </span>
             </div>
 
             <div className="bg-white dark:bg-[#2d3131] p-4 rounded-3xl border border-[#f1e2e1] dark:border-neutral-700 card-shadow">
               <span className="text-[10px] text-[#5b403f] dark:text-neutral-400 font-bold uppercase block">
-                {currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'Registered Members'}
+                {currentLang === 'sd' ? 'رجسٽرڊ رڪن' : currentLang === 'ur' ? 'رجسٹرڈ ممبرز' : 'Registered Members'}
               </span>
               <p className="font-headline font-black text-lg text-[#98001b] dark:text-[#ffb3b0] mt-1">
-                {(users || []).length} {currentLang === 'sd' ? '' : currentLang === 'ur' ? '' : 'Users'}
+                {(users || []).length} {currentLang === 'sd' ? 'رڪن' : currentLang === 'ur' ? 'ممبرز' : 'Users'}
               </p>
               <span className="text-[10px] text-neutral-500 font-semibold">
-                {currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '   ' : 'In cloud database'}
+                {currentLang === 'sd' ? 'ڪلائوڊ ڊيٽابيس ۾ محفوظ' : currentLang === 'ur' ? 'کلاؤڈ ڈیٹا بیس میں محفوظ' : 'In cloud database'}
               </span>
             </div>
 
             <div className="bg-white dark:bg-[#2d3131] p-4 rounded-3xl border border-[#f1e2e1] dark:border-neutral-700 card-shadow">
               <span className="text-[10px] text-[#5b403f] dark:text-neutral-400 font-bold uppercase block">
-                {currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'Active Schemes'}
+                {currentLang === 'sd' ? 'فعال اسڪيمون' : currentLang === 'ur' ? 'فعال اسکیمیں' : 'Active Schemes'}
               </span>
               <p className="font-headline font-black text-lg text-[#181c1c] dark:text-white mt-1">
-                {(projects || []).length} {currentLang === 'sd' ? '' : currentLang === 'ur' ? '' : 'Schemes'}
+                {(projects || []).length} {currentLang === 'sd' ? 'اسڪيمون' : currentLang === 'ur' ? 'اسکیمیں' : 'Schemes'}
               </p>
               <span className="text-[10px] text-neutral-500 font-semibold">
-                {(winners || []).length} {currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '  ' : 'Lucky Draw winners'}
+                {(winners || []).length} {currentLang === 'sd' ? 'قرعه اندازي جا فاتح' : currentLang === 'ur' ? 'قرعہ اندازی کے فاتحین' : 'Lucky Draw winners'}
               </span>
             </div>
           </div>
@@ -706,7 +745,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
           {/* Quick Actions Panel */}
           <div className="bg-white dark:bg-[#2d3131] p-5 rounded-3xl border border-[#f1e2e1] dark:border-neutral-700 card-shadow space-y-3">
             <h3 className="font-headline font-black text-xs text-[#181c1c] dark:text-white uppercase tracking-wider">
-              {currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '  ' : 'Quick Admin Actions'}
+              {currentLang === 'sd' ? 'جلدي ايڪشن' : currentLang === 'ur' ? 'فوری ایڈمن ایکشنز' : 'Quick Admin Actions'}
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
               <button
@@ -715,7 +754,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               >
                 <Plus className="w-5 h-5 text-[#98001b]" />
                 <span className="text-xs font-bold text-[#181c1c] dark:text-white">
-                  {currentLang === 'sd' ? '   ' : currentLang === 'ur' ? '   ' : 'Add New Scheme'}
+                  {currentLang === 'sd' ? 'نئين اسڪيم شامل ڪريو' : currentLang === 'ur' ? 'نئی اسکیم شامل کریں' : 'Add New Scheme'}
                 </span>
               </button>
 
@@ -725,7 +764,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               >
                 <UserPlus className="w-5 h-5 text-[#98001b]" />
                 <span className="text-xs font-bold text-[#181c1c] dark:text-white">
-                  {currentLang === 'sd' ? '   ' : currentLang === 'ur' ? '   ' : 'Add Member'}
+                  {currentLang === 'sd' ? 'نئون ميمبر شامل ڪريو' : currentLang === 'ur' ? 'نیا ممبر رجسٹر کریں' : 'Add Member'}
                 </span>
               </button>
 
@@ -735,7 +774,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               >
                 <Receipt className="w-5 h-5 text-emerald-600" />
                 <span className="text-xs font-bold text-[#181c1c] dark:text-white">
-                  {currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '  ' : 'Manual Payment'}
+                  {currentLang === 'sd' ? 'دستي ادائيگي داخل ڪريو' : currentLang === 'ur' ? 'دستی قسط جمع کریں' : 'Manual Payment'}
                 </span>
               </button>
 
@@ -743,11 +782,47 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 onClick={() => setActiveSection('statements')}
                 className="bg-[#f8faf9] hover:bg-[#ffdad8]/30 dark:bg-neutral-800 p-3.5 rounded-2xl border border-[#e2e8f0] dark:border-neutral-700 flex flex-col items-center text-center gap-1.5 cursor-pointer transition-all active:scale-98"
               >
-                <FileSpreadsheet className="w-5 h-5 text-blue-600" />
+                <FileSpreadsheet className="w-5 h-5 text-purple-600" />
                 <span className="text-xs font-bold text-[#181c1c] dark:text-white">
-                  {currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'Account Statements'}
+                  {currentLang === 'sd' ? 'کاتي اسٽيٽمينٽ PDF' : currentLang === 'ur' ? 'اکاؤنٹ اسٹیٹمنٹ و PDF' : 'Account Statements'}
                 </span>
               </button>
+            </div>
+          </div>
+
+          {/* Admin Navigation Buttons - Moved from Top Bar to Overview as requested */}
+          <div className="bg-white dark:bg-[#2d3131] p-5 rounded-3xl border border-[#f1e2e1] dark:border-neutral-700 card-shadow space-y-3">
+            <h3 className="font-headline font-black text-xs text-[#181c1c] dark:text-white uppercase tracking-wider flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-[#98001b]" />
+              <span>
+                {currentLang === 'sd' ? 'ايڊمن ماڊيولز ۽ آپشنز' : currentLang === 'ur' ? 'ایڈمن کنٹرولز و آپشنز' : 'Admin Sections & Controls'}
+              </span>
+            </h3>
+
+            <div className="flex flex-wrap items-center gap-2.5 pt-1">
+              {[
+                { id: 'projects', label: currentLang === 'sd' ? 'گاڏيون ۽ اسڪيمون' : currentLang === 'ur' ? 'گاڑیاں اور اسکیمیں' : 'Schemes & Cars', icon: Car },
+                { id: 'users', label: currentLang === 'sd' ? 'ڪسٽمر ۽ رڪن' : currentLang === 'ur' ? 'کسٹمرز اور ممبرز' : 'Customers & Members', icon: Users },
+                { id: 'payments', label: currentLang === 'sd' ? 'ادائيگيون ۽ رسيدون' : currentLang === 'ur' ? 'ادائیگی اور رسیدیں' : 'Payments & Slips', icon: CreditCard },
+                { id: 'statements', label: currentLang === 'sd' ? 'کاتي اسٽيٽمينٽ' : currentLang === 'ur' ? 'کھاتہ اسٹیٹمنٹ' : 'Account Statements', icon: FileSpreadsheet },
+                { id: 'winners', label: currentLang === 'sd' ? 'ڪامياب اميدوار' : currentLang === 'ur' ? 'کامیاب امیدوار' : 'Winners', icon: Award },
+                { id: 'accounts', label: currentLang === 'sd' ? 'بينڪ اڪائونٽس' : currentLang === 'ur' ? 'بینک اکاؤنٹس' : 'Bank Accounts', icon: Building2 },
+                { id: 'security', label: currentLang === 'sd' ? 'ايڊمن پن' : currentLang === 'ur' ? 'ایڈمن پن' : 'Admin PIN', icon: Lock },
+                { id: 'terms', label: currentLang === 'sd' ? 'شرطون ۽ ضوابط' : currentLang === 'ur' ? 'شرائط و ضوابط' : 'Terms & Conditions', icon: FileText }
+              ].map((item) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setActiveSection(item.id as any)}
+                    className="shrink-0 min-w-max flex items-center gap-2 px-4 py-2.5 rounded-full text-xs font-headline font-bold transition-all whitespace-nowrap cursor-pointer touch-target bg-white dark:bg-[#2d3131] text-[#5b403f] dark:text-neutral-200 hover:bg-[#98001b] hover:text-white dark:hover:bg-[#98001b] dark:hover:text-white border border-[#e2e8f0] dark:border-neutral-700 shadow-2xs hover:border-[#98001b] group active:scale-98"
+                  >
+                    <Icon className="w-4 h-4 text-[#98001b] group-hover:text-white transition-colors" />
+                    <span>{item.label}</span>
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>
@@ -761,13 +836,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-headline font-bold text-xs text-[#181c1c] dark:text-white uppercase">
-                {currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'All Vehicle Schemes'} ({(projects || []).length})
+                {currentLang === 'sd' ? 'گاڏين جون سموريون اسڪيمون' : currentLang === 'ur' ? 'گاڑیوں کی تمام اسکیمیں' : 'All Vehicle Schemes'} ({(projects || []).length})
               </h3>
               <p className="text-[11px] text-neutral-500">
                 {currentLang === 'sd'
-                  ? '           '
+                  ? 'گاڏين جا ماڊل، مهيني جي قسط ۽ تفصيلن جو انتظام ڪريو'
                   : currentLang === 'ur'
-                  ? '          '
+                  ? 'گاڑیوں کے ماڈلز، ماہانہ قسط اور تصاویر مینیج کریں'
                   : 'Manage vehicle specs, monthly installments & images'}
               </p>
             </div>
@@ -776,7 +851,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               className="bg-[#98001b] hover:bg-[#be1e2d] text-white px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               <Plus className="w-4 h-4" />
-              <span>{currentLang === 'sd' ? '   ' : currentLang === 'ur' ? '   ' : 'Add New Scheme'}</span>
+              <span>{currentLang === 'sd' ? 'نئين اسڪيم شامل ڪريو' : currentLang === 'ur' ? 'نئی اسکیم شامل کریں' : 'Add New Scheme'}</span>
             </button>
           </div>
 
@@ -808,8 +883,11 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       </strong>
                     </p>
                     <p className="text-[11px] font-mono text-neutral-500">
-                      Duration: {proj.durationMonths} Mo | Token: PKR {proj.tokenPrice?.toLocaleString()} | Seats:{' '}
-                      {proj.totalMembers}
+                      Duration: {proj.durationMonths} Mo |{' '}
+                      <span className={proj.tokenPrice && proj.tokenPrice > 0 ? 'text-[#98001b] font-bold' : 'text-emerald-700 dark:text-emerald-400 font-bold'}>
+                        {proj.tokenPrice && proj.tokenPrice > 0 ? `Token: PKR ${proj.tokenPrice.toLocaleString()}` : 'صرف ماہانہ قسط (No Advance Token)'}
+                      </span>{' '}
+                      | Seats: {proj.totalMembers}
                     </p>
                     <p className="text-[10px] text-[#775a19] dark:text-[#fed488]">
                       {proj.nonWinnersRefundText}
@@ -871,13 +949,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-headline font-bold text-xs text-[#181c1c] dark:text-white uppercase">
-                {currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '  ' : 'Payment Submissions & Slips'} ({(payments || []).length})
+                {currentLang === 'sd' ? 'ادائيگيون ۽ جمع ٿيل رسيدون' : currentLang === 'ur' ? 'ادائیگی اور رسیدیں' : 'Payment Submissions & Slips'} ({(payments || []).length})
               </h3>
               <p className="text-[11px] text-neutral-500">
                 {currentLang === 'sd'
-                  ? '       '
+                  ? 'جمع ڪرايل سلپس جي تصديق يا رد ڪريو ۽ ٽرانزيڪشن جو انتظام ڪريو'
                   : currentLang === 'ur'
-                  ? '        '
+                  ? 'جمع کرائی گئی رسیدوں کی تصدیق یا مسترد کریں اور ادائیگیوں کا ریکارڈ رکھیں'
                   : 'Verify or reject deposit slips and manage transactions'}
               </p>
             </div>
@@ -886,7 +964,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               className="bg-emerald-600 hover:bg-emerald-700 text-white px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               <Plus className="w-4 h-4" />
-              <span>{currentLang === 'sd' ? '   ' : currentLang === 'ur' ? '   ' : 'Record Manual Payment'}</span>
+              <span>{currentLang === 'sd' ? 'دستي ادائيگي درج ڪريو' : currentLang === 'ur' ? 'دستی ادائیگی درج کریں' : 'Record Manual Payment'}</span>
             </button>
           </div>
 
@@ -1080,13 +1158,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   LIVE DIGITAL BALLOTING
                 </div>
                 <h3 className="font-headline font-black text-base sm:text-lg text-white">
-                  {currentLang === 'sd' ? '    ' : currentLang === 'ur' ? '    ' : 'Digital Lucky Draw Balloting'}
+                  {currentLang === 'sd' ? 'ڊجيٽل قرعه اندازي بيلٽنگ' : currentLang === 'ur' ? 'ڈیجیٹل قرعہ اندازی بیلٹنگ' : 'Digital Lucky Draw Balloting'}
                 </h3>
                 <p className="text-xs text-[#fed488] mt-0.5">
                   {currentLang === 'sd'
-                    ? '       •            '
+                    ? 'سمورا فعال رجسٽرڊ رڪن ۽ ٽوڪن • لائيو بيلٽنگ هلايو ۽ پورٽل تي نشر ڪريو'
                     : currentLang === 'ur'
-                    ? '          •       '
+                    ? 'تمام فعال رجسٹرڈ ممبرز اور ٹوکنز • لائیو بیلٹنگ چلائیں اور پورٹل پر نشر کریں'
                     : 'Auto-loads all registered members & tokens. Run ballot simulation & broadcast live to portal!'}
                 </p>
               </div>
@@ -1098,20 +1176,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
               className="w-full sm:w-auto gold-gradient text-[#261900] font-headline font-black text-xs px-5 py-3 rounded-full shadow-gold hover:brightness-105 active:scale-98 transition-all flex items-center justify-center gap-2 cursor-pointer border border-[#e9c176] whitespace-nowrap z-10"
             >
               <Play className="w-4 h-4 fill-current text-[#98001b]" />
-              <span>{currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '   (Simulate Draw)' : 'Run Live Balloting Draw'}</span>
+              <span>{currentLang === 'sd' ? 'لائيو قرعه اندازي هلايو' : currentLang === 'ur' ? 'لائیو قرعہ اندازی چلائیں' : 'Run Live Balloting Draw'}</span>
             </button>
           </div>
 
           <div className="flex items-center justify-between pt-1">
             <div>
               <h3 className="font-headline font-bold text-xs text-[#181c1c] dark:text-white uppercase">
-                {currentLang === 'sd' ? '   ' : currentLang === 'ur' ? '    ' : 'Official Draw Winners'} ({(winners || []).length})
+                {currentLang === 'sd' ? 'سرڪاري فاتح اميدوار' : currentLang === 'ur' ? 'سرکاری قرعہ اندازی فاتحین' : 'Official Draw Winners'} ({(winners || []).length})
               </h3>
               <p className="text-[11px] text-neutral-500">
                 {currentLang === 'sd'
-                  ? '       '
+                  ? 'قرعه اندازي جي ڪامياب اميدوارن جو رڪارڊ ۽ اعلان'
                   : currentLang === 'ur'
-                  ? '       '
+                  ? 'قرعہ اندازی کے کامیاب امیدواروں کا ریکارڈ اور تاریخ'
                   : 'Manage lucky draw winner announcements and history'}
               </p>
             </div>
@@ -1152,7 +1230,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     className="px-2.5 py-1.5 rounded-lg bg-[#f7faf9] hover:bg-[#ebeeed] dark:bg-neutral-800 text-[#181c1c] dark:text-white font-bold text-xs border border-[#e0e3e2] flex items-center gap-1 cursor-pointer"
                   >
                     <Edit className="w-3.5 h-3.5 text-[#98001b]" />
-                    <span>{currentLang === 'sd' ? '' : currentLang === 'ur' ? '' : 'Edit'}</span>
+                    <span>{currentLang === 'sd' ? 'ترميم' : currentLang === 'ur' ? 'تبدیل کریں' : 'Edit'}</span>
                   </button>
 
                   {onDeleteWinner && (
@@ -1178,13 +1256,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
           <div className="flex items-center justify-between">
             <div>
               <h3 className="font-headline font-bold text-xs text-[#181c1c] dark:text-white uppercase">
-                {currentLang === 'sd' ? ' ' : currentLang === 'ur' ? ' ' : 'Payment Collection Accounts'} ({(bankAccounts || []).length})
+                {currentLang === 'sd' ? 'ادائيگي وصولي جا اڪائونٽس' : currentLang === 'ur' ? 'ادائیگی وصولی کے اکاؤنٹس' : 'Payment Collection Accounts'} ({(bankAccounts || []).length})
               </h3>
               <p className="text-[11px] text-neutral-500">
                 {currentLang === 'sd'
-                  ? '        '
+                  ? 'ايزي پئسا، جيز ڪيش ۽ بينڪ اڪائونٽس جو انتظام ڪريو'
                   : currentLang === 'ur'
-                  ? '          '
+                  ? 'ایزی پیسہ، جیز کیش اور بینک اکاؤنٹس کا انتظام کریں'
                   : 'Manage JazzCash, EasyPaisa and Bank accounts'}
               </p>
             </div>
@@ -1193,7 +1271,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               className="bg-[#98001b] hover:bg-[#be1e2d] text-white px-3.5 py-2 rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-sm"
             >
               <Plus className="w-4 h-4" />
-              <span>{currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '  ' : 'Add Account'}</span>
+              <span>{currentLang === 'sd' ? 'نئون اڪائونٽ شامل ڪريو' : currentLang === 'ur' ? 'نیا اکاؤنٹ شامل کریں' : 'Add Account'}</span>
             </button>
           </div>
 
@@ -1233,7 +1311,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       </div>
 
                       <p className="text-xs text-[#5b403f] dark:text-neutral-300">
-                        {currentLang === 'sd' ? '  : ' : currentLang === 'ur' ? '  : ' : 'Account Title: '}
+                        {currentLang === 'sd' ? 'اڪائونٽ ٽائيٽل: ' : currentLang === 'ur' ? 'اکاؤنٹ ٹائٹل: ' : 'Account Title: '}
                         <strong className="text-[#181c1c] dark:text-white">{account.accountTitle}</strong>
                       </p>
 
@@ -1291,27 +1369,33 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </div>
               <div>
                 <h3 className="font-headline font-black text-sm text-[#181c1c] dark:text-white uppercase">
-                  {currentLang === 'sd' ? '    ' : currentLang === 'ur' ? '    ' : 'Master Admin PIN & Security Settings'}
+                  {currentLang === 'sd' ? 'ماسٽر ايڊمن پن ۽ سيڪيورٽي' : currentLang === 'ur' ? 'ماسٹر ایڈمن پن اور سیکیورٹی' : 'Master Admin PIN & Security Settings'}
                 </h3>
                 <p className="text-xs text-[#5b403f] dark:text-neutral-400 mt-0.5">
                   {currentLang === 'sd'
-                    ? '       '
+                    ? 'ايڊمن پورٽل کي محفوظ رکڻ لاءِ پنهنجو ماسٽر پن تبديل ڪريو'
                     : currentLang === 'ur'
-                    ? '      (Master PIN)        '
+                    ? 'ایڈمن پورٹل کو محفوظ بنانے کے لیے اپنا خفیہ ماسٹر پن تبدیل کریں'
                     : 'Change your secret Master PIN to secure the administrator portal'}
                 </p>
               </div>
             </div>
 
             {pinChangeSaved && (
-              <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 p-3 rounded-xl flex items-center gap-2 text-xs font-bold font-urdu">
+              <div className="bg-emerald-50 dark:bg-emerald-950/50 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 p-3 rounded-xl flex items-center gap-2 text-xs font-bold">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-                <span>          (New Admin PIN updated and saved successfully)!</span>
+                <span>
+                  {currentLang === 'sd'
+                    ? 'نئون ايڊمن پن ڪاميابي سان محفوظ ٿي ويو!'
+                    : currentLang === 'ur'
+                    ? 'نیا ایڈمن پن کامیابی سے تبدیل اور محفوظ ہو گیا!'
+                    : 'New Admin PIN updated and saved successfully!'}
+                </span>
               </div>
             )}
 
             {pinChangeError && (
-              <div className="bg-red-50 dark:bg-red-950/50 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-300 p-3 rounded-xl flex items-center gap-2 text-xs font-bold font-urdu">
+              <div className="bg-red-50 dark:bg-red-950/50 border border-red-300 dark:border-red-800 text-red-800 dark:text-red-300 p-3 rounded-xl flex items-center gap-2 text-xs font-bold">
                 <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
                 <span>{pinChangeError}</span>
               </div>
@@ -1324,12 +1408,24 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 setPinChangeSaved(false);
 
                 if (!newPinInput.trim() || newPinInput.trim().length < 4) {
-                  setPinChangeError('      4     (PIN must be at least 4 chars).');
+                  setPinChangeError(
+                    currentLang === 'sd'
+                      ? 'پن گھٽ ۾ گھٽ 4 انگن تي مشتمل هجڻ گھرجي.'
+                      : currentLang === 'ur'
+                      ? 'پن کم از کم 4 ہندسوں پر مشتمل ہونا چاہیے۔'
+                      : 'PIN must be at least 4 characters long.'
+                  );
                   return;
                 }
 
                 if (newPinInput !== confirmPinInput) {
-                  setPinChangeError('            (PINs do not match).');
+                  setPinChangeError(
+                    currentLang === 'sd'
+                      ? 'ٻئي پن هڪجهڙا ناهن، مھرباني ڪري ٻيهر جانچيو.'
+                      : currentLang === 'ur'
+                      ? 'دونوں پن ایک جیسے نہیں ہیں، برائے مہربانی دوبارہ چیک کریں۔'
+                      : 'PINs do not match. Please verify.'
+                  );
                   return;
                 }
 
@@ -1341,7 +1437,13 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     setConfirmPinInput('');
                     setTimeout(() => setPinChangeSaved(false), 4000);
                   } catch {
-                    setPinChangeError('           ');
+                    setPinChangeError(
+                      currentLang === 'sd'
+                        ? 'پن محفوظ ڪرڻ دوران خرابي پيش آئي.'
+                        : currentLang === 'ur'
+                        ? 'پن محفوظ کرنے میں خرابی پیش آئی۔'
+                        : 'Failed to update PIN.'
+                    );
                   }
                 }
               }}
@@ -1349,14 +1451,14 @@ export const AdminView: React.FC<AdminViewProps> = ({
             >
               <div>
                 <label className="block text-xs font-bold text-[#181c1c] dark:text-white uppercase mb-1">
-                  New Master Secret PIN
+                  {currentLang === 'sd' ? 'نئون ماسٽر پن' : currentLang === 'ur' ? 'نیا ماسٹر پن' : 'New Master Secret PIN'}
                 </label>
                 <div className="relative max-w-md">
                   <input
                     type={showPin ? 'text' : 'password'}
                     value={newPinInput}
                     onChange={(e) => setNewPinInput(e.target.value)}
-                    placeholder="Enter new Master PIN (••••)"
+                    placeholder="••••"
                     className="w-full pl-3 pr-10 py-2.5 bg-[#f7faf9] dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 rounded-xl font-mono font-bold text-sm text-[#181c1c] dark:text-white focus:border-[#98001b] outline-none"
                     required
                     minLength={4}
@@ -1373,7 +1475,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
               <div>
                 <label className="block text-xs font-bold text-[#181c1c] dark:text-white uppercase mb-1">
-                  {currentLang === 'sd' ? '    ' : currentLang === 'ur' ? '    ' : 'Confirm New Master PIN'}
+                  {currentLang === 'sd' ? 'نئين ماسٽر پن جي تصديق ڪريو' : currentLang === 'ur' ? 'نئے ماسٹر پن کی تصدیق کریں' : 'Confirm New Master PIN'}
                 </label>
                 <div className="relative max-w-md">
                   <input
@@ -1393,7 +1495,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 className="bg-[#98001b] hover:bg-[#be1e2d] text-white font-headline font-bold text-xs py-3 px-6 rounded-xl flex items-center justify-center gap-2 cursor-pointer shadow-md transition-all active:scale-98"
               >
                 <Save className="w-4 h-4" />
-                <span>{currentLang === 'sd' ? '   ' : currentLang === 'ur' ? '   ' : 'Save New Admin PIN'}</span>
+                <span>{currentLang === 'sd' ? 'نئون ايڊمن پن محفوظ ڪريو' : currentLang === 'ur' ? 'نیا ایڈمن پن محفوظ کریں' : 'Save New Admin PIN'}</span>
               </button>
             </form>
           </div>
@@ -1405,20 +1507,20 @@ export const AdminView: React.FC<AdminViewProps> = ({
       {/* ========================================================= */}
       {activeSection === 'terms' && (
         <div className="space-y-4">
-          <div className="bg-white dark:bg-[#2d3131] p-4 rounded-3xl border border-[#e0e3e2] dark:border-neutral-700 shadow-xs flex justify-between items-center">
+          <div className="bg-white dark:bg-[#2d3131] p-4 rounded-3xl border border-[#e0e3e2] dark:border-neutral-700 shadow-xs flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
             <div>
               <h3 className="font-headline font-bold text-xs text-[#181c1c] dark:text-white uppercase">
-                {currentLang === 'sd' ? '  ' : currentLang === 'ur' ? '  ' : 'Terms & Conditions Rules'} ({(terms || []).length})
+                {currentLang === 'sd' ? 'قاعدا ۽ شرطون' : currentLang === 'ur' ? 'قواعد و ضوابط' : 'Terms & Conditions Rules'} ({(terms || []).length})
               </h3>
               <p className="text-[11px] text-neutral-500">
                 {currentLang === 'sd'
-                  ? '       '
+                  ? 'قانوني شقون، پاليسي شرطون ۽ خودڪار ترجما منظم ڪريو'
                   : currentLang === 'ur'
-                  ? '         '
+                  ? 'قانونی شقیں، پالیسی شرائط اور خودکار تراجم مینیج کریں'
                   : 'Manage legal terms, clauses and policy agreements'}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
               <button
                 onClick={() => {
                   setEditingTermIndex(null);
@@ -1437,7 +1539,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
               </button>
               <button
                 onClick={() => {
-                  const confirmMsg = currentLang === 'ur'
+                  const confirmMsg = currentLang === 'sd'
+                    ? 'ڇا توھان واقعي اصل قاعدا ۽ شرطون بحال ڪرڻ چاھيو ٿا؟'
+                    : currentLang === 'ur'
                     ? 'کیا آپ واقعی تمام اصل (Default) شرائط و ضوابط بحال کرنا چاہتے ہیں؟'
                     : 'Are you sure you want to restore original default terms?';
                   if (onUpdateTerms && window.confirm(confirmMsg)) {
@@ -1448,7 +1552,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 id="btn-admin-restore-terms"
               >
                 <RotateCcw className="w-4 h-4" />
-                <span>{currentLang === 'ur' ? 'اصل شرائط بحال کریں' : 'Restore Original'}</span>
+                <span>{currentLang === 'sd' ? 'اصل بحال ڪريو' : currentLang === 'ur' ? 'اصل شرائط بحال کریں' : 'Restore Original'}</span>
               </button>
             </div>
           </div>
@@ -1457,71 +1561,80 @@ export const AdminView: React.FC<AdminViewProps> = ({
             {(terms || []).length === 0 ? (
               <div className="bg-white dark:bg-[#2d3131] p-8 rounded-2xl border border-dashed border-[#e0e3e2] dark:border-neutral-700 text-center space-y-2">
                 <FileText className="w-8 h-8 mx-auto text-neutral-400" />
-                <p className="text-xs text-neutral-500 font-urdu">کوئی شق موجود نہیں ہے۔ اوپر دیے گئے بٹن سے نئی شق شامل کریں۔</p>
+                <p className="text-xs text-neutral-500">
+                  {currentLang === 'sd'
+                    ? 'ڪابه شق موجود ناهي. مٿين بٽڻ ذريعي نئين شق شامل ڪريو.'
+                    : currentLang === 'ur'
+                    ? 'کوئی شق موجود نہیں ہے۔ اوپر دیے گئے بٹن سے نئی شق شامل کریں۔'
+                    : 'No clauses found. Click the button above to add a new clause.'}
+                </p>
               </div>
             ) : (
-              (terms || []).map((t, idx) => (
-                <div
-                  key={idx}
-                  className="bg-white dark:bg-[#2d3131] p-4 rounded-2xl border border-[#e0e3e2] dark:border-neutral-700 space-y-2"
-                >
-                  <div className="flex justify-between items-center border-b border-neutral-100 dark:border-neutral-700/60 pb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[#fed488]/40 text-[#775a19]">
-                        #{t.number}
-                      </span>
-                      <h4 className="font-bold text-sm text-[#181c1c] dark:text-white font-urdu">
-                        {t.title}
-                      </h4>
+              (terms || []).map((t, idx) => {
+                const localized = getLocalizedTerm(t, currentLang);
+                return (
+                  <div
+                    key={idx}
+                    className="bg-white dark:bg-[#2d3131] p-4 rounded-2xl border border-[#e0e3e2] dark:border-neutral-700 space-y-2"
+                  >
+                    <div className="flex justify-between items-center border-b border-neutral-100 dark:border-neutral-700/60 pb-2">
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs font-bold px-2 py-0.5 rounded bg-[#fed488]/40 text-[#775a19]">
+                          #{localized.number}
+                        </span>
+                        <h4 className="font-bold text-sm text-[#181c1c] dark:text-white">
+                          {localized.title}
+                        </h4>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <button
+                          onClick={() => {
+                            setEditingTermIndex(idx);
+                            setTermFormData({
+                              number: t.number,
+                              title: t.title,
+                              paragraphsText: (t.paragraphs || []).join('\n\n')
+                            });
+                            setShowTermModal(true);
+                          }}
+                          className="px-3 py-1.5 rounded-lg bg-[#f7faf9] dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-xs font-bold border border-neutral-200 dark:border-neutral-700 flex items-center gap-1 cursor-pointer transition-colors"
+                          title="Edit Clause"
+                        >
+                          <Edit className="w-3.5 h-3.5 text-[#98001b]" />
+                          <span>{currentLang === 'sd' ? 'ترميم' : currentLang === 'ur' ? 'تبدیل کریں' : 'Edit'}</span>
+                        </button>
+                        <button
+                          onClick={() => {
+                            const confirmMsg = currentLang === 'ur'
+                              ? `کیا آپ واقعی شق نمبر #${t.number} (${t.title}) کو ڈیلیٹ کرنا چاہتے ہیں؟`
+                              : currentLang === 'sd'
+                              ? `ڇا توھان واقعي شق نمبر #${t.number} ڊليٽ ڪرڻ چاھيو ٿا؟`
+                              : `Are you sure you want to delete Clause #${t.number} (${t.title})?`;
+                            if (window.confirm(confirmMsg)) {
+                              const updated = (terms || []).filter((_, i) => i !== idx);
+                              const renumbered = updated.map((item, i) => ({
+                                ...item,
+                                number: String(i + 1)
+                              }));
+                              if (onUpdateTerms) onUpdateTerms(renumbered);
+                            }
+                          }}
+                          className="px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-xs font-bold border border-red-200 dark:border-red-900/50 flex items-center gap-1 cursor-pointer text-red-600 dark:text-red-400 transition-colors"
+                          title="Delete Clause"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          <span>{currentLang === 'sd' ? 'ڊليٽ' : currentLang === 'ur' ? 'ڈیلیٹ' : 'Delete'}</span>
+                        </button>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-1.5">
-                      <button
-                        onClick={() => {
-                          setEditingTermIndex(idx);
-                          setTermFormData({
-                            number: t.number,
-                            title: t.title,
-                            paragraphsText: (t.paragraphs || []).join('\n\n')
-                          });
-                          setShowTermModal(true);
-                        }}
-                        className="px-3 py-1.5 rounded-lg bg-[#f7faf9] dark:bg-neutral-800 hover:bg-neutral-100 dark:hover:bg-neutral-700 text-xs font-bold border border-neutral-200 dark:border-neutral-700 flex items-center gap-1 cursor-pointer transition-colors"
-                        title="Edit Clause"
-                      >
-                        <Edit className="w-3.5 h-3.5 text-[#98001b]" />
-                        <span>{currentLang === 'sd' ? 'ترمیم' : currentLang === 'ur' ? 'تبدیل کریں' : 'Edit'}</span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          const confirmMsg = currentLang === 'ur'
-                            ? `کیا آپ واقعی شق نمبر #${t.number} (${t.title}) کو ڈیلیٹ کرنا چاہتے ہیں؟`
-                            : currentLang === 'sd'
-                            ? `ڇا توھان واقعي شق نمبر #${t.number} ڊليٽ ڪرڻ چاھيو ٿا؟`
-                            : `Are you sure you want to delete Clause #${t.number} (${t.title})?`;
-                          if (window.confirm(confirmMsg)) {
-                            const updated = (terms || []).filter((_, i) => i !== idx);
-                            const renumbered = updated.map((item, i) => ({
-                              ...item,
-                              number: String(i + 1)
-                            }));
-                            if (onUpdateTerms) onUpdateTerms(renumbered);
-                          }
-                        }}
-                        className="px-2.5 py-1.5 rounded-lg bg-red-50 hover:bg-red-100 dark:bg-red-950/40 dark:hover:bg-red-900/60 text-xs font-bold border border-red-200 dark:border-red-900/50 flex items-center gap-1 cursor-pointer text-red-600 dark:text-red-400 transition-colors"
-                        title="Delete Clause"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                        <span>{currentLang === 'sd' ? 'ڊليٽ' : currentLang === 'ur' ? 'ڈیلیٹ' : 'Delete'}</span>
-                      </button>
+                    <div className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed space-y-1">
+                      {(localized.paragraphs || []).map((p, pIdx) => (
+                        <p key={pIdx}>{p}</p>
+                      ))}
                     </div>
                   </div>
-                  <div className="text-xs text-neutral-600 dark:text-neutral-300 font-urdu leading-relaxed space-y-1">
-                    {(t.paragraphs || []).map((p, pIdx) => (
-                      <p key={pIdx}>{p}</p>
-                    ))}
-                  </div>
-                </div>
-              ))
+                );
+              })
             )}
           </div>
         </div>
@@ -1740,17 +1853,51 @@ export const AdminView: React.FC<AdminViewProps> = ({
                           required
                         />
                       </div>
-                      <div>
-                        <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase mb-1">
+                      <div className="space-y-1.5">
+                        <label className="block font-bold text-neutral-700 dark:text-neutral-300 uppercase">
                           Token / Advance Price (PKR)
                         </label>
-                        <input
-                          type="number"
-                          value={projectFormData.tokenPrice || ''}
-                          onChange={(e) => setProjectFormData({ ...projectFormData, tokenPrice: Number(e.target.value) })}
-                          placeholder="5000"
-                          className="w-full bg-white dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 rounded-xl px-3 py-2 font-bold text-[#98001b] dark:text-[#ffb3b0] outline-none focus:border-[#98001b]"
-                        />
+                        <div className="flex items-center gap-2 mb-1">
+                          <button
+                            type="button"
+                            onClick={() => setProjectFormData({ ...projectFormData, tokenPrice: 0, tokenAmount: 0 })}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                              !projectFormData.tokenPrice || Number(projectFormData.tokenPrice) === 0
+                                ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                                : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-[#e0e3e2] hover:bg-neutral-50'
+                            }`}
+                          >
+                            صرف ماہانہ قسط (0 PKR)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setProjectFormData({ ...projectFormData, tokenPrice: projectFormData.tokenPrice || 5000, tokenAmount: projectFormData.tokenPrice || 5000 })}
+                            className={`px-2.5 py-1 rounded-lg text-[11px] font-bold border transition-all cursor-pointer ${
+                              projectFormData.tokenPrice && Number(projectFormData.tokenPrice) > 0
+                                ? 'bg-[#98001b] text-white border-[#98001b] shadow-xs'
+                                : 'bg-white dark:bg-neutral-800 text-neutral-600 dark:text-neutral-300 border-[#e0e3e2] hover:bg-neutral-50'
+                            }`}
+                          >
+                            ایڈوانس ٹوکن کے ساتھ
+                          </button>
+                        </div>
+                        {(!projectFormData.tokenPrice || Number(projectFormData.tokenPrice) === 0) ? (
+                          <div className="bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800/60 rounded-xl px-3 py-2 text-xs text-emerald-800 dark:text-emerald-300 font-bold flex items-center justify-between">
+                            <span>0 PKR (کوئی ایڈوانس فیس نہیں ہے)</span>
+                            <span className="text-[10px] bg-emerald-200 dark:bg-emerald-800 text-emerald-900 dark:text-emerald-100 px-2 py-0.5 rounded-full">صرف ماہانہ قسط</span>
+                          </div>
+                        ) : (
+                          <input
+                            type="number"
+                            value={projectFormData.tokenPrice || ''}
+                            onChange={(e) => {
+                              const val = e.target.value === '' ? 0 : Number(e.target.value);
+                              setProjectFormData({ ...projectFormData, tokenPrice: val, tokenAmount: val });
+                            }}
+                            placeholder="مثال: 5000"
+                            className="w-full bg-white dark:bg-neutral-800 border border-[#e0e3e2] dark:border-neutral-700 rounded-xl px-3 py-2 font-bold text-[#98001b] dark:text-[#ffb3b0] outline-none focus:border-[#98001b]"
+                          />
+                        )}
                       </div>
                     </>
                   ) : (
@@ -2512,18 +2659,27 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
                 const finalParagraphs = paragraphs.length > 0 ? paragraphs : [termFormData.paragraphsText.trim()];
                 const updatedTerms = [...(terms || [])];
+                const cleanTitle = termFormData.title.trim();
+                const clauseNum = termFormData.number.trim() || `${editingTermIndex !== null ? editingTermIndex + 1 : updatedTerms.length + 1}`;
+                const autoTranslations = generateClauseTranslations(clauseNum, cleanTitle, finalParagraphs);
                 
                 if (editingTermIndex !== null) {
+                  const existingTerm = updatedTerms[editingTermIndex];
                   updatedTerms[editingTermIndex] = {
-                    number: termFormData.number.trim() || `${editingTermIndex + 1}`,
-                    title: termFormData.title.trim(),
-                    paragraphs: finalParagraphs
+                    number: clauseNum,
+                    title: cleanTitle,
+                    paragraphs: finalParagraphs,
+                    translations: {
+                      ...(existingTerm?.translations || {}),
+                      ...autoTranslations
+                    }
                   };
                 } else {
                   updatedTerms.push({
-                    number: termFormData.number.trim() || `${updatedTerms.length + 1}`,
-                    title: termFormData.title.trim(),
-                    paragraphs: finalParagraphs
+                    number: clauseNum,
+                    title: cleanTitle,
+                    paragraphs: finalParagraphs,
+                    translations: autoTranslations
                   });
                 }
                 
